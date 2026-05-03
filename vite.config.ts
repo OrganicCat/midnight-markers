@@ -1,13 +1,13 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import webExtension from 'vite-plugin-web-extension';
+import webExtension, { readJsonFile } from 'vite-plugin-web-extension';
 import path from 'node:path';
 
 export default defineConfig({
   plugins: [
     svelte(),
     webExtension({
-      manifest: () => path.resolve(__dirname, 'src/manifest.json'),
+      manifest: () => readJsonFile('src/manifest.json'),
       browser: process.env.TARGET ?? 'chrome',
     }),
   ],

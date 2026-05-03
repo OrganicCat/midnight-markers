@@ -1,11 +1,22 @@
 @import 'tailwindcss';
 
+@theme {
+  --color-bg-base: #0b0c14;
+  --color-bg-raised: #0d0e15;
+  --color-bg-deep: #14172a;
+  --color-accent-violet: #8b9bff;
+  --color-accent-purple: #bd93f9;
+  --color-accent-teal: #6fe6cf;
+
+  --font-sans: system-ui, -apple-system, 'Segoe UI', 'Helvetica Neue', sans-serif;
+}
+
 :root {
   color-scheme: dark;
 }
 
-html, body { background: theme('colors.bg.base'); color: #e8e9f0; }
-body { font-family: theme('fontFamily.sans'); margin: 0; }
+html, body { background: var(--color-bg-base); color: #e8e9f0; }
+body { font-family: var(--font-sans); margin: 0; }
 
-.bm-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; transition: background 200ms ease, transform 200ms ease; }
-.bm-card:hover { background: rgba(255,255,255,0.05); transform: translateY(-1px); }
+.bm-card { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; transition: background 200ms ease, transform 200ms ease; }
+.bm-card:hover { background: rgba(255, 255, 255, 0.05); transform: translateY(-1px); }
