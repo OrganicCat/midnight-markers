@@ -20,9 +20,4 @@ export default defineConfig({
     target: 'es2022',
     sourcemap: true,
   },
-  test: {
-    environment: 'happy-dom',
-    setupFiles: ['./tests/setup.ts'],
-    globals: true,
-  },
 });
