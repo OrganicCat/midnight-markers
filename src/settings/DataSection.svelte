@@ -56,7 +56,7 @@
 </script>
 
 <div class="rounded-xl border border-white/10 p-5 bg-white/[0.02]">
-  <div class="text-[10px] uppercase tracking-wider opacity-50 mb-3">Data</div>
+  <div class="text-[0.625rem] uppercase tracking-wider opacity-50 mb-3">Data</div>
 
   <div class="space-y-3">
     <div class="flex items-center gap-3">

@@ -46,6 +46,7 @@ export type Settings = {
   aiFeatures: AIFeatures;
   defaultView: 'grid' | 'list';
   defaultCollectionId: string | null;
+  uiScale: number; // multiplier on root font-size; 1.0 = 100%, range 0.9–1.5
 };
 
 export type SmartFilter = 'recent' | 'unread' | 'starred' | 'untagged' | 'broken';

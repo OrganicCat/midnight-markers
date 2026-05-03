@@ -167,7 +167,7 @@
   }
 </script>
 
-<div class="p-4 w-[320px] text-sm">
+<div class="p-4 w-full text-sm">
   {#if error}
     <div class="opacity-70">{error}</div>
   {:else if bookmark}
@@ -199,11 +199,11 @@
     </div>
 
     <div class="mt-3">
-      <div class="text-[10px] uppercase tracking-wide opacity-50 mb-1">Tags</div>
+      <div class="text-[0.625rem] uppercase tracking-wide opacity-50 mb-1">Tags</div>
       <TagPicker bind:selectedIds={selectedTagIds} {allTags} />
     </div>
     <div class="mt-3">
-      <div class="text-[10px] uppercase tracking-wide opacity-50 mb-1">Collection</div>
+      <div class="text-[0.625rem] uppercase tracking-wide opacity-50 mb-1">Collection</div>
       <CollectionPicker bind:selectedId={selectedCollectionId} collections={allCollections} />
     </div>
     <div class="mt-3 text-xs opacity-50">Saved · <button onclick={undoSave} class="underline">undo</button></div>

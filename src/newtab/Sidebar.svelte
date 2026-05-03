@@ -54,10 +54,10 @@
   });
 </script>
 
-<aside class="w-[200px] shrink-0 px-3 py-4 border-r border-white/5 text-sm">
+<aside class="w-[12.5rem] shrink-0 px-3 py-4 border-r border-white/5 text-sm">
   <div class="font-semibold tracking-tight mb-4">⏾ midnight</div>
 
-  <div class="text-[10px] uppercase tracking-wider opacity-50 px-2 mt-3 mb-1">Library</div>
+  <div class="text-[0.625rem] uppercase tracking-wider opacity-50 px-2 mt-3 mb-1">Library</div>
   <button class="w-full text-left px-2 py-1 rounded hover:bg-white/5 {isActive({ kind: 'all' }) ? 'bg-white/10' : ''}" onclick={() => onSelect({ kind: 'all' })}>All</button>
   <button class="w-full text-left px-2 py-1 rounded hover:bg-white/5 {isActive({ kind: 'smart', smart: 'recent' }) ? 'bg-white/10' : ''}" onclick={() => onSelect({ kind: 'smart', smart: 'recent' })}>Recent</button>
   <button class="w-full text-left px-2 py-1 rounded hover:bg-white/5 {isActive({ kind: 'smart', smart: 'unread' }) ? 'bg-white/10' : ''}" onclick={() => onSelect({ kind: 'smart', smart: 'unread' })}>Unread</button>
@@ -66,7 +66,7 @@
   <button class="w-full text-left px-2 py-1 rounded hover:bg-white/5 {isActive({ kind: 'smart', smart: 'broken' }) ? 'bg-white/10' : ''}" onclick={() => onSelect({ kind: 'smart', smart: 'broken' })}>Broken</button>
 
   {#if collectionTree.length > 0}
-    <div class="text-[10px] uppercase tracking-wider opacity-50 px-2 mt-4 mb-1">Collections</div>
+    <div class="text-[0.625rem] uppercase tracking-wider opacity-50 px-2 mt-4 mb-1">Collections</div>
     {#each collectionTree as { c, depth } (c.id)}
       <button
         class="w-full text-left py-1 rounded hover:bg-white/5 flex items-center gap-2 {isActive({ kind: 'collection', id: c.id }) ? 'bg-white/10' : ''} {dragOverId === c.id ? 'bg-accent-violet/20 ring-1 ring-accent-violet/40' : ''}"
@@ -88,7 +88,7 @@
   {/if}
 
   {#if tags.length > 0}
-    <div class="text-[10px] uppercase tracking-wider opacity-50 px-2 mt-4 mb-1">Tags</div>
+    <div class="text-[0.625rem] uppercase tracking-wider opacity-50 px-2 mt-4 mb-1">Tags</div>
     {#each tags as t (t.id)}
       <button class="w-full text-left px-2 py-1 rounded hover:bg-white/5 flex items-center justify-between {isActive({ kind: 'tag', id: t.id }) ? 'bg-white/10' : ''}" onclick={() => onSelect({ kind: 'tag', id: t.id })}>
         <span class="truncate">{t.name}</span>

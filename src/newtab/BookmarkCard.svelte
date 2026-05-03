@@ -14,7 +14,7 @@
       {#if bookmark.faviconUrl}
         <img src={bookmark.faviconUrl} alt="" class="w-3.5 h-3.5 rounded-sm" />
       {/if}
-      <div class="text-[10px] opacity-50 truncate flex-1">{bookmark.domain}</div>
+      <div class="text-[0.625rem] opacity-50 truncate flex-1">{bookmark.domain}</div>
       {#if bookmark.starred}
         <span class="text-yellow-300 text-xs">★</span>
       {/if}

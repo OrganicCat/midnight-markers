@@ -57,7 +57,7 @@
 
         <div class="min-w-0">
           <div class="font-medium truncate">{b.title}</div>
-          <div class="text-[10px] opacity-50 truncate">
+          <div class="text-[0.625rem] opacity-50 truncate">
             {b.domain}
             {#if collectionFor(b.collectionId)}
               · <span style="color:{collectionFor(b.collectionId)?.color}">{collectionFor(b.collectionId)?.name}</span>
@@ -67,11 +67,11 @@
 
         <div class="flex flex-wrap gap-1 overflow-hidden max-h-5">
           {#each tagNames(b.tagIds).slice(0, 3) as t (t)}
-            <span class="text-[9px] px-1.5 py-0.5 rounded bg-white/5">{t}</span>
+            <span class="text-[0.5625rem] px-1.5 py-0.5 rounded bg-white/5">{t}</span>
           {/each}
         </div>
 
-        <div class="text-[10px] opacity-50 text-right">{timeAgo(b.createdAt)}</div>
+        <div class="text-[0.625rem] opacity-50 text-right">{timeAgo(b.createdAt)}</div>
 
         <button
           class="opacity-0 group-hover:opacity-100 text-base leading-none w-6 h-6 flex items-center justify-center rounded hover:bg-red-500/20"

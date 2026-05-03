@@ -32,4 +32,10 @@ describe('settings store', () => {
     expect(s.aiKey).toBe('sk-1');
     expect(s.defaultView).toBe('list');
   });
+
+  it('uiScale defaults to 1 and round-trips', async () => {
+    expect((await settings.get()).uiScale).toBe(1);
+    await settings.set({ uiScale: 1.3 });
+    expect((await settings.get()).uiScale).toBe(1.3);
+  });
 });

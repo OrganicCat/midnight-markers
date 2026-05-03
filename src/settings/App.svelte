@@ -8,13 +8,16 @@
   import PrivacyNote from './PrivacyNote.svelte';
   import DataSection from './DataSection.svelte';
   import Diagnostics from './Diagnostics.svelte';
+  import ScalePicker from './ScalePicker.svelte';
 
   let s = $state<Settings | null>(null);
   let modelDraft = $state<string>('anthropic/claude-haiku-4.5');
+  let scaleDraft = $state<number>(1);
 
   async function refresh() {
     s = await settings.get();
     modelDraft = s.aiModel;
+    scaleDraft = s.uiScale;
   }
 
   onMount(refresh);
@@ -54,6 +57,13 @@
       void setModel(modelDraft);
     }
   });
+
+  $effect(() => {
+    if (!s) return;
+    if (scaleDraft !== s.uiScale) {
+      void settings.set({ uiScale: scaleDraft }).then(refresh);
+    }
+  });
 </script>
 
 <div class="min-h-screen p-10" style="background: linear-gradient(180deg, #0b0c14 0%, #14172a 100%);">
@@ -73,8 +83,10 @@
 
       <ModelPicker bind:value={modelDraft} />
 
+      <ScalePicker bind:value={scaleDraft} />
+
       <div class="rounded-xl border border-white/10 p-5 bg-white/[0.02]">
-        <div class="text-[10px] uppercase tracking-wider opacity-50 mb-3">AI features</div>
+        <div class="text-[0.625rem] uppercase tracking-wider opacity-50 mb-3">AI features</div>
         {#each [['tags','Suggest tags','Prefer existing · max 2 new per save'],['title','Suggest title','Show a friendlier title; original always recoverable'],['collection','Suggest collection','Pick from existing collections only']] as [key, label, desc]}
           <label class="flex items-start justify-between gap-4 py-2">
             <div>

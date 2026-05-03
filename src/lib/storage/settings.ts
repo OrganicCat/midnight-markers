@@ -10,6 +10,7 @@ export const DEFAULT_SETTINGS: Settings = {
   aiFeatures: { tags: true, title: true, collection: true },
   defaultView: 'grid',
   defaultCollectionId: null,
+  uiScale: 1,
 };
 
 export const settings = {

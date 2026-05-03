@@ -13,7 +13,7 @@
   } = $props();
 </script>
 
-<div class="rounded-lg px-3 py-2 text-[11px] border"
+<div class="rounded-lg px-3 py-2 text-[0.6875rem] border"
      style="background: {state === 'thinking' || state === 'ready' ? 'rgba(140,150,255,0.06)' : 'rgba(255,255,255,0.04)'}; border-color: {state === 'thinking' || state === 'ready' ? 'rgba(140,150,255,0.3)' : 'rgba(255,255,255,0.1)'}">
   {#if state === 'thinking'}
     <div class="flex items-center gap-2">
@@ -29,9 +29,9 @@
     <div class="flex flex-col gap-0.5">
       <div class="opacity-90">⚠ AI request failed</div>
       {#if errorMessage}
-        <div class="opacity-60 text-[10px] break-words">{errorMessage}</div>
+        <div class="opacity-60 text-[0.625rem] break-words">{errorMessage}</div>
       {/if}
-      <div class="opacity-40 text-[10px]">See popup DevTools console, or Settings → Diagnostics for details.</div>
+      <div class="opacity-40 text-[0.625rem]">See popup DevTools console, or Settings → Diagnostics for details.</div>
     </div>
   {:else}
     <span class="opacity-50">AI suggestions off · enable in Settings</span>

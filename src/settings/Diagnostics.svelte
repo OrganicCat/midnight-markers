@@ -38,14 +38,14 @@
 </script>
 
 <div class="rounded-xl border border-white/10 p-5 bg-white/[0.02]">
-  <div class="text-[10px] uppercase tracking-wider opacity-50 mb-3">Diagnostics</div>
+  <div class="text-[0.625rem] uppercase tracking-wider opacity-50 mb-3">Diagnostics</div>
 
   {#if lastError}
     <div class="space-y-2">
       <div class="flex items-center justify-between gap-3">
         <div class="text-xs">
           <div class="font-medium">Last AI error</div>
-          <div class="opacity-50 text-[10px]">{formatTime(lastError.ts)}</div>
+          <div class="opacity-50 text-[0.625rem]">{formatTime(lastError.ts)}</div>
         </div>
         <div class="flex gap-2">
           <button class="px-2 py-1 rounded bg-white/5 text-xs" onclick={copyToClipboard}>
@@ -55,7 +55,7 @@
         </div>
       </div>
 
-      <div class="bg-black/40 rounded p-3 font-mono text-[10px] leading-relaxed space-y-1">
+      <div class="bg-black/40 rounded p-3 font-mono text-[0.625rem] leading-relaxed space-y-1">
         <div><span class="opacity-50">message:</span> <span class="text-red-300">{lastError.message}</span></div>
         {#if lastError.status !== undefined}
           <div><span class="opacity-50">status:</span> {lastError.status}</div>
@@ -76,7 +76,7 @@
     <p class="text-xs opacity-50">No recent AI errors recorded.</p>
   {/if}
 
-  <p class="mt-3 text-[10px] opacity-50 leading-relaxed">
+  <p class="mt-3 text-[0.625rem] opacity-50 leading-relaxed">
     Verbose request/response logs print to the popup's DevTools console. Right-click the toolbar icon → Inspect popup → Console.
   </p>
 </div>
