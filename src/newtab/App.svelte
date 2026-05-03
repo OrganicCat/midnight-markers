@@ -7,29 +7,63 @@
   import { collections as colStore } from '$lib/storage/collections';
   import { tags as tagsStore } from '$lib/storage/tags';
   import { storageEvents } from '$lib/storage/events';
+  import { buildIndex, searchIds, type SearchIndex } from '$lib/search/index';
   import type { Bookmark, Collection, Tag } from '$lib/types';
 
   let selection = $state<Selection>({ kind: 'all' });
   let search = $state('');
   let collections = $state<Collection[]>([]);
   let tags = $state<Tag[]>([]);
+  let allBookmarks = $state<Bookmark[]>([]);
+  let index = $state<SearchIndex | null>(null);
   let items = $state<Bookmark[]>([]);
 
-  async function refresh() {
-    [collections, tags] = await Promise.all([colStore.list(), tagsStore.list()]);
-    const filter =
-      selection.kind === 'all' ? {} :
-      selection.kind === 'smart' ? { smart: selection.smart } :
-      selection.kind === 'collection' ? { collectionId: selection.id } :
-      { tagId: selection.id };
-    items = await bookmarks.list({ ...filter, ...(search ? { search } : {}) });
+  async function loadData() {
+    [collections, tags, allBookmarks] = await Promise.all([
+      colStore.list(),
+      tagsStore.list(),
+      bookmarks.list({}),
+    ]);
+    index = buildIndex(allBookmarks);
   }
 
-  $effect(() => { void selection; void search; refresh(); });
+  $effect(() => {
+    if (!index) {
+      items = [];
+      return;
+    }
+    let pool = allBookmarks;
+
+    if (selection.kind === 'smart') {
+      const smart = selection.smart;
+      pool = pool.filter((b) => {
+        switch (smart) {
+          case 'recent': return b.createdAt >= Date.now() - 7 * 24 * 60 * 60 * 1000;
+          case 'unread': return b.unread;
+          case 'starred': return b.starred;
+          case 'untagged': return b.tagIds.length === 0;
+          case 'broken': return b.isBroken;
+        }
+      });
+    } else if (selection.kind === 'collection') {
+      const id = selection.id;
+      pool = pool.filter((b) => b.collectionId === id);
+    } else if (selection.kind === 'tag') {
+      const id = selection.id;
+      pool = pool.filter((b) => b.tagIds.includes(id));
+    }
+
+    if (search.trim()) {
+      const matchingIds = new Set(searchIds(index, search));
+      pool = pool.filter((b) => matchingIds.has(b.id));
+    }
+
+    items = [...pool].sort((a, b) => b.createdAt - a.createdAt);
+  });
 
   onMount(() => {
-    refresh();
-    const sub = () => refresh();
+    loadData();
+    const sub = () => loadData();
     storageEvents.on('bookmarks:changed', sub);
     storageEvents.on('collections:changed', sub);
     storageEvents.on('tags:changed', sub);
