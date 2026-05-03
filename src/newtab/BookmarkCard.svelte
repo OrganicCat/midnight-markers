@@ -22,7 +22,7 @@
     <div class="text-xs font-medium leading-snug line-clamp-2">{bookmark.title}</div>
   </div>
   <button
-    class="absolute top-1 right-1 px-1.5 py-0.5 text-xs rounded bg-black/40 opacity-0 group-hover:opacity-100"
+    class="absolute top-1.5 right-1.5 w-7 h-7 flex items-center justify-center text-base leading-none rounded-md bg-black/50 hover:bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity"
     onclick={(e) => { e.stopPropagation(); onDelete(); }}
     aria-label="Delete bookmark"
   >×</button>
