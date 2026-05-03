@@ -1,0 +1,68 @@
+import { describe, it, expect } from 'vitest';
+import { buildMessages } from '$lib/ai/prompt';
+
+describe('buildMessages', () => {
+  const baseInput = {
+    title: 'Designing for the long now',
+    url: 'https://jakeworth.com/long-now-web',
+    description: 'An essay on durable web design.',
+    excerpt: 'When we design for the web today, we tend to optimize for...',
+    existingTags: ['design', 'webdev', 'longread'],
+    existingCollections: [
+      { id: '01ABC', name: 'Reading' },
+      { id: '01DEF', name: 'Design' },
+    ],
+  };
+
+  it('returns a system message and a user message', () => {
+    const msgs = buildMessages(baseInput);
+    expect(msgs).toHaveLength(2);
+    expect(msgs[0]!.role).toBe('system');
+    expect(msgs[1]!.role).toBe('user');
+  });
+
+  it('system message instructs JSON-only output with the expected schema', () => {
+    const msgs = buildMessages(baseInput);
+    const sys = msgs[0]!.content;
+    expect(sys).toMatch(/JSON/);
+    expect(sys).toMatch(/"title"/);
+    expect(sys).toMatch(/"tags"/);
+    expect(sys).toMatch(/"collectionId"/);
+  });
+
+  it('system message instructs to prefer existing tags and cap new tags at 2', () => {
+    const sys = buildMessages(baseInput)[0]!.content;
+    expect(sys).toMatch(/prefer existing/i);
+    expect(sys).toMatch(/at most 2 new/i);
+  });
+
+  it('user message includes the page title, url, description, and excerpt', () => {
+    const user = buildMessages(baseInput)[1]!.content;
+    expect(user).toContain('Designing for the long now');
+    expect(user).toContain('https://jakeworth.com/long-now-web');
+    expect(user).toContain('An essay on durable web design.');
+    expect(user).toContain('When we design for the web today');
+  });
+
+  it('user message lists existing tags and collections by name and id', () => {
+    const user = buildMessages(baseInput)[1]!.content;
+    expect(user).toContain('design');
+    expect(user).toContain('webdev');
+    expect(user).toContain('Reading (01ABC)');
+    expect(user).toContain('Design (01DEF)');
+  });
+
+  it('handles null description and excerpt gracefully', () => {
+    const user = buildMessages({ ...baseInput, description: null, excerpt: null })[1]!.content;
+    expect(user).not.toMatch(/null/i);
+  });
+
+  it('truncates excerpt at 500 characters', () => {
+    const longExcerpt = 'a'.repeat(2000);
+    const user = buildMessages({ ...baseInput, excerpt: longExcerpt })[1]!.content;
+    // The body of the excerpt section should not exceed 500 + framing
+    const aRuns = user.match(/a{500,}/g) ?? [];
+    expect(aRuns.length).toBeLessThanOrEqual(1);
+    expect(aRuns[0]?.length ?? 0).toBeLessThanOrEqual(510);
+  });
+});
