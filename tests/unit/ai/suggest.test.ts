@@ -1,0 +1,132 @@
+import 'fake-indexeddb/auto';
+import { IDBFactory } from 'fake-indexeddb';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { _resetDbForTests } from '$lib/storage/db';
+import { settings } from '$lib/storage/settings';
+import { suggestForBookmark } from '$lib/ai/suggest';
+
+const fetchMock = vi.fn();
+
+beforeEach(() => {
+  globalThis.indexedDB = new IDBFactory();
+  _resetDbForTests();
+  vi.stubGlobal('fetch', fetchMock);
+  fetchMock.mockReset();
+});
+afterEach(() => vi.unstubAllGlobals());
+
+const baseInput = {
+  title: 'Type theory primer',
+  url: 'https://example.com/types',
+  description: null,
+  excerpt: null,
+  existingTags: ['cs', 'reading'],
+  existingCollections: [{ id: '01READING', name: 'Reading' }],
+};
+
+describe('suggestForBookmark', () => {
+  it('returns null when no API key is set', async () => {
+    const out = await suggestForBookmark(baseInput);
+    expect(out).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('returns null when all AI features are off', async () => {
+    await settings.set({ aiKey: 'sk-test', aiFeatures: { tags: false, title: false, collection: false } });
+    const out = await suggestForBookmark(baseInput);
+    expect(out).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('returns parsed suggestions on a valid response', async () => {
+    await settings.set({ aiKey: 'sk-test' });
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: JSON.stringify({
+            title: 'A Type Theory Primer',
+            tags: ['cs', 'types'],
+            collectionId: '01READING',
+          }) } }],
+        }),
+        { status: 200 },
+      ),
+    );
+    const out = await suggestForBookmark(baseInput);
+    expect(out).not.toBeNull();
+    expect(out!.suggestedTitle).toBe('A Type Theory Primer');
+    expect(out!.suggestedTags).toEqual([
+      { name: 'cs', isNew: false },
+      { name: 'types', isNew: true },
+    ]);
+    expect(out!.suggestedCollectionId).toBe('01READING');
+  });
+
+  it('drops collectionId when not in existingCollections', async () => {
+    await settings.set({ aiKey: 'sk-test' });
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: JSON.stringify({
+            title: null, tags: ['cs'], collectionId: 'NOT-A-REAL-ID',
+          }) } }],
+        }),
+        { status: 200 },
+      ),
+    );
+    const out = await suggestForBookmark(baseInput);
+    expect(out!.suggestedCollectionId).toBeNull();
+  });
+
+  it('lowercases tag names and caps total tags at 5', async () => {
+    await settings.set({ aiKey: 'sk-test' });
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: JSON.stringify({
+            title: null, tags: ['CS', 'Types', 'Foo', 'Bar', 'Baz', 'Qux', 'Extra'], collectionId: null,
+          }) } }],
+        }),
+        { status: 200 },
+      ),
+    );
+    const out = await suggestForBookmark(baseInput);
+    expect(out!.suggestedTags.map((t) => t.name)).toEqual(['cs', 'types', 'foo', 'bar', 'baz']);
+  });
+
+  it('respects feature flags — drops title when title flag off', async () => {
+    await settings.set({ aiKey: 'sk-test', aiFeatures: { tags: true, title: false, collection: true } });
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: JSON.stringify({
+            title: 'Better Title', tags: ['cs'], collectionId: null,
+          }) } }],
+        }),
+        { status: 200 },
+      ),
+    );
+    const out = await suggestForBookmark(baseInput);
+    expect(out!.suggestedTitle).toBeNull();
+    expect(out!.suggestedTags).toEqual([{ name: 'cs', isNew: false }]);
+  });
+
+  it('returns null on OpenRouter error (graceful degrade)', async () => {
+    await settings.set({ aiKey: 'sk-test' });
+    fetchMock.mockResolvedValueOnce(new Response('', { status: 500 }));
+    const out = await suggestForBookmark(baseInput);
+    expect(out).toBeNull();
+  });
+
+  it('returns null on timeout', async () => {
+    await settings.set({ aiKey: 'sk-test' });
+    fetchMock.mockImplementationOnce(
+      (_u: string, init: RequestInit) =>
+        new Promise((_, reject) => {
+          init.signal!.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+        }),
+    );
+    const out = await suggestForBookmark(baseInput, { timeoutMs: 5 });
+    expect(out).toBeNull();
+  });
+});
