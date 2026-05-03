@@ -24,6 +24,6 @@
     "service_worker": "src/background/service-worker.ts",
     "type": "module"
   },
-  "permissions": ["storage", "activeTab", "scripting", "tabs", "bookmarks"],
+  "permissions": ["storage", "activeTab", "scripting", "tabs", "bookmarks", "alarms"],
   "host_permissions": ["https://openrouter.ai/*"]
 }
