@@ -52,4 +52,13 @@
       </button>
     {/each}
   {/if}
+
+  <div class="mt-6 pt-3 border-t border-white/5">
+    <button
+      class="w-full text-left px-2 py-1 rounded hover:bg-white/5 text-xs opacity-60 hover:opacity-100"
+      onclick={() => chrome.runtime.openOptionsPage()}
+    >
+      ⚙ Settings
+    </button>
+  </div>
 </aside>
