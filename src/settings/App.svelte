@@ -7,6 +7,7 @@
   import ModelPicker from './ModelPicker.svelte';
   import PrivacyNote from './PrivacyNote.svelte';
   import DataSection from './DataSection.svelte';
+  import Diagnostics from './Diagnostics.svelte';
 
   let s = $state<Settings | null>(null);
   let modelDraft = $state<string>('anthropic/claude-haiku-4.5');
@@ -91,6 +92,7 @@
       </div>
 
       <PrivacyNote />
+      <Diagnostics />
       <DataSection />
     {:else}
       <p class="opacity-50">Loading…</p>

@@ -1,3 +1,4 @@
+import { log } from '$lib/log';
 import type { OpenRouterMessage } from './types';
 
 const BASE = 'https://openrouter.ai/api/v1';
@@ -6,6 +7,7 @@ export class OpenRouterError extends Error {
   constructor(
     message: string,
     public readonly status?: number,
+    public readonly body?: string,
   ) {
     super(message);
     this.name = 'OpenRouterError';
@@ -20,7 +22,10 @@ export type ChatCompleteArgs = {
 };
 
 export async function chatComplete(args: ChatCompleteArgs): Promise<unknown> {
-  const res = await fetch(`${BASE}/chat/completions`, {
+  const url = `${BASE}/chat/completions`;
+  log.debug('chatComplete →', { model: args.model, messageCount: args.messages.length, url });
+
+  const res = await fetch(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${args.apiKey}`,
@@ -37,21 +42,28 @@ export async function chatComplete(args: ChatCompleteArgs): Promise<unknown> {
     ...(args.signal ? { signal: args.signal } : {}),
   });
 
+  log.debug('chatComplete ←', { status: res.status });
+
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new OpenRouterError(`HTTP ${res.status}: ${text.slice(0, 200)}`, res.status);
+    log.error('OpenRouter HTTP error', { status: res.status, body: text.slice(0, 500) });
+    throw new OpenRouterError(`HTTP ${res.status}: ${text.slice(0, 200)}`, res.status, text);
   }
 
   const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
   const content = json.choices?.[0]?.message?.content;
   if (typeof content !== 'string') {
-    throw new OpenRouterError('Empty response content');
+    log.error('OpenRouter empty response content', json);
+    throw new OpenRouterError('Empty response content', undefined, JSON.stringify(json).slice(0, 500));
   }
 
   try {
-    return JSON.parse(content);
+    const parsed = JSON.parse(content);
+    log.debug('chatComplete parsed', parsed);
+    return parsed;
   } catch {
-    throw new OpenRouterError(`Model output was not valid JSON: ${content.slice(0, 200)}`);
+    log.error('Model output was not valid JSON', { content: content.slice(0, 500) });
+    throw new OpenRouterError(`Model output was not valid JSON: ${content.slice(0, 200)}`, undefined, content);
   }
 }
 
@@ -61,8 +73,10 @@ export async function validateKey(apiKey: string): Promise<boolean> {
       method: 'GET',
       headers: { Authorization: `Bearer ${apiKey}` },
     });
+    log.debug('validateKey ←', { status: res.status });
     return res.ok;
-  } catch {
+  } catch (e) {
+    log.warn('validateKey failed', e);
     return false;
   }
 }

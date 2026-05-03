@@ -7,7 +7,7 @@
   import { tags as tagsStore } from '$lib/storage/tags';
   import { collections as colStore } from '$lib/storage/collections';
   import { settings } from '$lib/storage/settings';
-  import { suggestForBookmark } from '$lib/ai/suggest';
+  import { suggestForBookmarkResult } from '$lib/ai/suggest';
   import type { Bookmark, Collection, Tag } from '$lib/types';
   import type { Suggestion } from '$lib/ai/types';
   import TagPicker from './TagPicker.svelte';
@@ -25,6 +25,7 @@
   let aiState = $state<'thinking' | 'ready' | 'error' | 'disabled'>('disabled');
   let aiModel = $state<string | undefined>(undefined);
   let aiLatencyMs = $state<number | undefined>(undefined);
+  let aiErrorMessage = $state<string | undefined>(undefined);
   let suggestion = $state<Suggestion | null>(null);
 
   $effect(() => {
@@ -51,7 +52,7 @@
     aiModel = s.aiModel;
     aiState = 'thinking';
     const t0 = performance.now();
-    const result = await suggestForBookmark({
+    const result = await suggestForBookmarkResult({
       title: b.originalTitle,
       url: b.url,
       description: b.description,
@@ -60,12 +61,23 @@
       existingCollections: allCollections.map((c) => ({ id: c.id, name: c.name })),
     });
     aiLatencyMs = performance.now() - t0;
-    if (result === null) {
+    if (!result.ok) {
       aiState = 'error';
+      aiErrorMessage = formatReason(result.reason);
       return;
     }
-    suggestion = result;
+    suggestion = result.suggestion;
     aiState = 'ready';
+  }
+
+  function formatReason(r: { kind: string } & Record<string, unknown>): string {
+    switch (r.kind) {
+      case 'http': return `HTTP ${r['status']}: ${(r['body'] as string)?.slice(0, 200) || (r['message'] as string)}`;
+      case 'timeout': return 'Request timed out (10s)';
+      case 'parse': return `Bad model output: ${r['message']}`;
+      case 'unknown': return r['message'] as string;
+      default: return 'Unknown error';
+    }
   }
 
   onMount(async () => {
@@ -145,7 +157,7 @@
     </div>
 
     <div class="mt-3">
-      <AIBanner state={aiState} {...(aiModel ? { model: aiModel } : {})} {...(aiLatencyMs !== undefined ? { latencyMs: aiLatencyMs } : {})} />
+      <AIBanner state={aiState} {...(aiModel ? { model: aiModel } : {})} {...(aiLatencyMs !== undefined ? { latencyMs: aiLatencyMs } : {})} {...(aiErrorMessage ? { errorMessage: aiErrorMessage } : {})} />
       {#if aiState === 'ready' && suggestion}
         <AISuggestions
           {suggestion}
