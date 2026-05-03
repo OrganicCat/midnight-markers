@@ -26,6 +26,32 @@
   function isActive(s: Selection): boolean {
     return JSON.stringify(s) === JSON.stringify(selection);
   }
+
+  type FlatNode = { c: Collection; depth: number };
+
+  // Flatten the collection forest into a depth-first list with depth annotations.
+  let collectionTree = $derived.by<FlatNode[]>(() => {
+    const byParent = new Map<string | null, Collection[]>();
+    for (const c of collections) {
+      const list = byParent.get(c.parentId) ?? [];
+      list.push(c);
+      byParent.set(c.parentId, list);
+    }
+    for (const list of byParent.values()) list.sort((a, b) => a.sortOrder - b.sortOrder);
+
+    const out: FlatNode[] = [];
+    const walk = (parentId: string | null, depth: number): void => {
+      const children = byParent.get(parentId);
+      if (!children) return;
+      for (const c of children) {
+        if (depth > 2) continue; // cap at 3 levels (depths 0-2)
+        out.push({ c, depth });
+        walk(c.id, depth + 1);
+      }
+    };
+    walk(null, 0);
+    return out;
+  });
 </script>
 
 <aside class="w-[200px] shrink-0 px-3 py-4 border-r border-white/5 text-sm">
@@ -39,11 +65,12 @@
   <button class="w-full text-left px-2 py-1 rounded hover:bg-white/5 {isActive({ kind: 'smart', smart: 'untagged' }) ? 'bg-white/10' : ''}" onclick={() => onSelect({ kind: 'smart', smart: 'untagged' })}>Untagged</button>
   <button class="w-full text-left px-2 py-1 rounded hover:bg-white/5 {isActive({ kind: 'smart', smart: 'broken' }) ? 'bg-white/10' : ''}" onclick={() => onSelect({ kind: 'smart', smart: 'broken' })}>Broken</button>
 
-  {#if collections.length > 0}
+  {#if collectionTree.length > 0}
     <div class="text-[10px] uppercase tracking-wider opacity-50 px-2 mt-4 mb-1">Collections</div>
-    {#each collections as c (c.id)}
+    {#each collectionTree as { c, depth } (c.id)}
       <button
-        class="w-full text-left px-2 py-1 rounded hover:bg-white/5 flex items-center gap-2 {isActive({ kind: 'collection', id: c.id }) ? 'bg-white/10' : ''} {dragOverId === c.id ? 'bg-accent-violet/20 ring-1 ring-accent-violet/40' : ''}"
+        class="w-full text-left py-1 rounded hover:bg-white/5 flex items-center gap-2 {isActive({ kind: 'collection', id: c.id }) ? 'bg-white/10' : ''} {dragOverId === c.id ? 'bg-accent-violet/20 ring-1 ring-accent-violet/40' : ''}"
+        style="padding-left: {8 + depth * 14}px; padding-right: 8px;"
         onclick={() => onSelect({ kind: 'collection', id: c.id })}
         ondragover={(e) => { e.preventDefault(); dragOverId = c.id; if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; }}
         ondragleave={() => { if (dragOverId === c.id) dragOverId = null; }}
@@ -54,7 +81,7 @@
           dragOverId = null;
         }}
       >
-        <span class="w-3 h-3 rounded-sm" style="background:{c.color}"></span>
+        <span class="w-3 h-3 rounded-sm shrink-0" style="background:{c.color}"></span>
         <span class="flex-1 truncate">{c.name}</span>
       </button>
     {/each}

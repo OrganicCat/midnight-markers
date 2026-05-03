@@ -4,7 +4,7 @@ export type SuggestInput = {
   description: string | null;
   excerpt: string | null;
   existingTags: string[];
-  existingCollections: { id: string; name: string }[];
+  existingCollections: { id: string; path: string[] }[]; // path top→leaf, max 3 deep
 };
 
 export type SuggestedTag = {
@@ -15,7 +15,7 @@ export type SuggestedTag = {
 export type Suggestion = {
   suggestedTitle: string | null;
   suggestedTags: SuggestedTag[];
-  suggestedCollectionId: string | null;
+  suggestedCollectionPath: string[] | null; // path of names, top→leaf, may include new names
 };
 
 export type OpenRouterMessage = {

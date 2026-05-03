@@ -5,24 +5,25 @@
   let {
     suggestion,
     collections,
+    appliedTagNames = new Set(),
+    appliedCollectionId = null,
     onAcceptTitle,
     onAcceptTag,
-    onAcceptCollection,
   }: {
     suggestion: Suggestion;
     collections: Collection[];
+    appliedTagNames?: Set<string>;
+    appliedCollectionId?: string | null;
     onAcceptTitle: (title: string) => void;
     onAcceptTag: (name: string, isNew: boolean) => void;
-    onAcceptCollection: (id: string) => void;
   } = $props();
+
+  let titleDismissed = $state(false);
+  let tagsManuallyAccepted = $state<Set<string>>(new Set());
 
   function colName(id: string): string {
     return collections.find((c) => c.id === id)?.name ?? '?';
   }
-
-  let titleDismissed = $state(false);
-  let tagsAccepted = $state<Set<string>>(new Set());
-  let collectionAccepted = $state(false);
 
   function acceptTitle() {
     if (suggestion.suggestedTitle) {
@@ -32,13 +33,7 @@
   }
   function acceptTag(t: { name: string; isNew: boolean }) {
     onAcceptTag(t.name, t.isNew);
-    tagsAccepted = new Set([...tagsAccepted, t.name]);
-  }
-  function acceptCollection() {
-    if (suggestion.suggestedCollectionId) {
-      onAcceptCollection(suggestion.suggestedCollectionId);
-      collectionAccepted = true;
-    }
+    tagsManuallyAccepted = new Set([...tagsManuallyAccepted, t.name]);
   }
 </script>
 
@@ -51,27 +46,36 @@
   </div>
 {/if}
 
-{#if suggestion.suggestedTags.length > 0}
-  <div class="mt-2 flex flex-wrap gap-1">
-    {#each suggestion.suggestedTags as t (t.name)}
-      {#if !tagsAccepted.has(t.name)}
-        <button
-          class="px-2 py-0.5 rounded-full text-[10px] border border-dashed"
-          style="background: {t.isNew ? 'rgba(111,230,207,0.08)' : 'rgba(140,150,255,0.08)'}; color: {t.isNew ? 'var(--color-accent-teal)' : 'var(--color-accent-violet)'}; border-color: {t.isNew ? 'rgba(111,230,207,0.3)' : 'rgba(140,150,255,0.3)'}"
-          onclick={() => acceptTag(t)}
-        >
-          {t.isNew ? '+ ' : '✦ '}{t.name}
-        </button>
-      {/if}
-    {/each}
+{#if suggestion.suggestedCollectionPath && appliedCollectionId}
+  <div class="mt-2 flex items-center gap-2 text-[11px]">
+    <span class="text-accent-teal">✓</span>
+    <span class="opacity-70">Filed in:</span>
+    <span class="text-accent-violet font-medium">{suggestion.suggestedCollectionPath.join(' › ')}</span>
+    <span class="opacity-40 text-[10px] ml-auto">(change below)</span>
   </div>
 {/if}
 
-{#if suggestion.suggestedCollectionId && !collectionAccepted}
-  <div class="mt-2 flex items-center gap-2 text-[11px]">
-    <span class="opacity-50">Collection:</span>
-    <button class="px-2 py-0.5 rounded bg-accent-violet/10 text-accent-violet text-[10px]" onclick={acceptCollection}>
-      ✦ {colName(suggestion.suggestedCollectionId)}
-    </button>
+{#if suggestion.suggestedTags.length > 0}
+  <div class="mt-2">
+    <div class="flex flex-wrap gap-1">
+      {#each suggestion.suggestedTags as t (t.name)}
+        {#if !appliedTagNames.has(t.name) && !tagsManuallyAccepted.has(t.name)}
+          <button
+            class="px-2 py-0.5 rounded-full text-[10px] border border-dashed"
+            style="background: {t.isNew ? 'rgba(111,230,207,0.08)' : 'rgba(140,150,255,0.08)'}; color: {t.isNew ? 'var(--color-accent-teal)' : 'var(--color-accent-violet)'}; border-color: {t.isNew ? 'rgba(111,230,207,0.3)' : 'rgba(140,150,255,0.3)'}"
+            title={t.isNew ? 'New tag — will be created when added' : 'Existing tag from your library'}
+            onclick={() => acceptTag(t)}
+          >
+            {t.isNew ? '+ ' : '✦ '}{t.name}
+          </button>
+        {/if}
+      {/each}
+    </div>
+    {#if suggestion.suggestedTags.some((t) => !appliedTagNames.has(t.name) && !tagsManuallyAccepted.has(t.name))}
+      <div class="mt-1.5 text-[9px] opacity-40 flex gap-3">
+        <span><span class="text-accent-violet">✦</span> existing tag</span>
+        <span><span class="text-accent-teal">+</span> new tag</span>
+      </div>
+    {/if}
   </div>
 {/if}

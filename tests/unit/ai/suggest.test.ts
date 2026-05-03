@@ -21,7 +21,7 @@ const baseInput = {
   description: null,
   excerpt: null,
   existingTags: ['cs', 'reading'],
-  existingCollections: [{ id: '01READING', name: 'Reading' }],
+  existingCollections: [{ id: '01READING', path: ['Reading'] }],
 };
 
 describe('suggestForBookmark', () => {
@@ -46,7 +46,7 @@ describe('suggestForBookmark', () => {
           choices: [{ message: { content: JSON.stringify({
             title: 'A Type Theory Primer',
             tags: ['cs', 'types'],
-            collectionId: '01READING',
+            collectionPath: ['Reading'],
           }) } }],
         }),
         { status: 200 },
@@ -59,23 +59,53 @@ describe('suggestForBookmark', () => {
       { name: 'cs', isNew: false },
       { name: 'types', isNew: true },
     ]);
-    expect(out!.suggestedCollectionId).toBe('01READING');
+    expect(out!.suggestedCollectionPath).toEqual(['Reading']);
   });
 
-  it('drops collectionId when not in existingCollections', async () => {
+  it('caps collection path at 3 levels', async () => {
     await settings.set({ aiKey: 'sk-test' });
     fetchMock.mockResolvedValueOnce(
       new Response(
         JSON.stringify({
           choices: [{ message: { content: JSON.stringify({
-            title: null, tags: ['cs'], collectionId: 'NOT-A-REAL-ID',
+            title: null, tags: [], collectionPath: ['Gaming', 'PoE', 'Builds', 'Necro', 'Spectre'],
           }) } }],
         }),
         { status: 200 },
       ),
     );
     const out = await suggestForBookmark(baseInput);
-    expect(out!.suggestedCollectionId).toBeNull();
+    expect(out!.suggestedCollectionPath).toEqual(['Gaming', 'PoE', 'Builds']);
+  });
+
+  it('returns null path when collectionPath is missing', async () => {
+    await settings.set({ aiKey: 'sk-test' });
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: JSON.stringify({ title: null, tags: ['cs'] }) } }],
+        }),
+        { status: 200 },
+      ),
+    );
+    const out = await suggestForBookmark(baseInput);
+    expect(out!.suggestedCollectionPath).toBeNull();
+  });
+
+  it('returns null path when collection feature is off', async () => {
+    await settings.set({ aiKey: 'sk-test', aiFeatures: { tags: true, title: true, collection: false } });
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: JSON.stringify({
+            title: null, tags: [], collectionPath: ['Reading'],
+          }) } }],
+        }),
+        { status: 200 },
+      ),
+    );
+    const out = await suggestForBookmark(baseInput);
+    expect(out!.suggestedCollectionPath).toBeNull();
   });
 
   it('lowercases tag names and caps total tags at 5', async () => {
@@ -84,7 +114,7 @@ describe('suggestForBookmark', () => {
       new Response(
         JSON.stringify({
           choices: [{ message: { content: JSON.stringify({
-            title: null, tags: ['CS', 'Types', 'Foo', 'Bar', 'Baz', 'Qux', 'Extra'], collectionId: null,
+            title: null, tags: ['CS', 'Types', 'Foo', 'Bar', 'Baz', 'Qux', 'Extra'], collectionPath: null,
           }) } }],
         }),
         { status: 200 },
@@ -100,7 +130,7 @@ describe('suggestForBookmark', () => {
       new Response(
         JSON.stringify({
           choices: [{ message: { content: JSON.stringify({
-            title: 'Better Title', tags: ['cs'], collectionId: null,
+            title: 'Better Title', tags: ['cs'], collectionPath: null,
           }) } }],
         }),
         { status: 200 },

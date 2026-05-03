@@ -3,6 +3,8 @@ import { emit } from './events';
 import { newId } from '$lib/ulid';
 import type { Collection } from '$lib/types';
 
+export const MAX_COLLECTION_DEPTH = 3;
+
 const PALETTE = [
   '#8b9bff', '#bd93f9', '#ff79c6', '#ff8a65', '#ffe66d', '#50fa7b',
   '#6fe6cf', '#8be9fd', '#a8e6cf', '#c7ceea', '#f1a7c8', '#ffb86c',
@@ -55,5 +57,87 @@ export const collections = {
   async get(id: string): Promise<Collection | null> {
     const db = await getDb();
     return (await db.get('collections', id)) ?? null;
+  },
+
+  /**
+   * Returns the path of names from root to this collection, e.g. ['Gaming', 'Path of Exile', 'Builds'].
+   * Walks up through parentId. Stops at depth MAX_COLLECTION_DEPTH to prevent runaway loops.
+   */
+  async pathOf(id: string): Promise<string[]> {
+    const db = await getDb();
+    const path: string[] = [];
+    let cur: Collection | undefined = await db.get('collections', id);
+    let safety = 0;
+    while (cur && safety < MAX_COLLECTION_DEPTH * 2) {
+      path.unshift(cur.name);
+      if (!cur.parentId) break;
+      cur = await db.get('collections', cur.parentId);
+      safety++;
+    }
+    return path;
+  },
+
+  /**
+   * Returns all collections with their computed path. Use for AI prompts and tree views.
+   */
+  async listWithPaths(): Promise<Array<{ id: string; path: string[]; depth: number; parentId: string | null; color: string; sortOrder: number; name: string }>> {
+    const all = await this.list();
+    const byId = new Map(all.map((c) => [c.id, c]));
+    const result = all.map((c) => {
+      const path: string[] = [];
+      let cur: Collection | undefined = c;
+      let safety = 0;
+      while (cur && safety < MAX_COLLECTION_DEPTH * 2) {
+        path.unshift(cur.name);
+        if (!cur.parentId) break;
+        cur = byId.get(cur.parentId);
+        safety++;
+      }
+      return {
+        id: c.id,
+        path,
+        depth: path.length - 1,
+        parentId: c.parentId,
+        color: c.color,
+        sortOrder: c.sortOrder,
+        name: c.name,
+      };
+    });
+    return result;
+  },
+
+  /**
+   * Walks a path of names (e.g. ['Gaming', 'Path of Exile', 'Builds']) and returns the leaf
+   * collection id, creating intermediate collections as needed. Capped at MAX_COLLECTION_DEPTH.
+   * Matching is case-insensitive on name within a parent scope.
+   */
+  async resolvePath(path: string[]): Promise<string> {
+    if (path.length === 0) throw new Error('resolvePath called with empty path');
+    const trimmed = path
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+      .slice(0, MAX_COLLECTION_DEPTH);
+    if (trimmed.length === 0) throw new Error('resolvePath path was all empty after trim');
+
+    const all = await this.list();
+    let parentId: string | null = null;
+    let leafId = '';
+
+    for (const segment of trimmed) {
+      const lower = segment.toLowerCase();
+      const existing = all.find(
+        (c) => c.parentId === parentId && c.name.toLowerCase() === lower,
+      );
+      if (existing) {
+        parentId = existing.id;
+        leafId = existing.id;
+      } else {
+        const created = await this.create({ name: segment, parentId });
+        all.push(created);
+        parentId = created.id;
+        leafId = created.id;
+      }
+    }
+    return leafId;
   },
 };

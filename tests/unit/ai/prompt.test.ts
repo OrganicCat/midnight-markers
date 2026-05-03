@@ -9,8 +9,9 @@ describe('buildMessages', () => {
     excerpt: 'When we design for the web today, we tend to optimize for...',
     existingTags: ['design', 'webdev', 'longread'],
     existingCollections: [
-      { id: '01ABC', name: 'Reading' },
-      { id: '01DEF', name: 'Design' },
+      { id: '01ABC', path: ['Reading'] },
+      { id: '01DEF', path: ['Design'] },
+      { id: '01GHI', path: ['Gaming', 'Path of Exile'] },
     ],
   };
 
@@ -27,13 +28,18 @@ describe('buildMessages', () => {
     expect(sys).toMatch(/JSON/);
     expect(sys).toMatch(/"title"/);
     expect(sys).toMatch(/"tags"/);
-    expect(sys).toMatch(/"collectionId"/);
+    expect(sys).toMatch(/"collectionPath"/);
   });
 
   it('system message instructs to prefer existing tags and cap new tags at 2', () => {
     const sys = buildMessages(baseInput)[0]!.content;
     expect(sys).toMatch(/prefer existing/i);
     expect(sys).toMatch(/at most 2 new/i);
+  });
+
+  it('system message caps collection path depth at 3', () => {
+    const sys = buildMessages(baseInput)[0]!.content;
+    expect(sys).toMatch(/NEVER more than 3/);
   });
 
   it('user message includes the page title, url, description, and excerpt', () => {
@@ -44,12 +50,13 @@ describe('buildMessages', () => {
     expect(user).toContain('When we design for the web today');
   });
 
-  it('user message lists existing tags and collections by name and id', () => {
+  it('user message lists existing tags and collections as paths', () => {
     const user = buildMessages(baseInput)[1]!.content;
     expect(user).toContain('design');
     expect(user).toContain('webdev');
-    expect(user).toContain('Reading (01ABC)');
-    expect(user).toContain('Design (01DEF)');
+    expect(user).toContain('Reading');
+    expect(user).toContain('Design');
+    expect(user).toContain('Gaming > Path of Exile');
   });
 
   it('handles null description and excerpt gracefully', () => {
@@ -60,9 +67,13 @@ describe('buildMessages', () => {
   it('truncates excerpt at 500 characters', () => {
     const longExcerpt = 'a'.repeat(2000);
     const user = buildMessages({ ...baseInput, excerpt: longExcerpt })[1]!.content;
-    // The body of the excerpt section should not exceed 500 + framing
     const aRuns = user.match(/a{500,}/g) ?? [];
     expect(aRuns.length).toBeLessThanOrEqual(1);
     expect(aRuns[0]?.length ?? 0).toBeLessThanOrEqual(510);
+  });
+
+  it('handles empty existingCollections gracefully', () => {
+    const user = buildMessages({ ...baseInput, existingCollections: [] })[1]!.content;
+    expect(user).toContain('(none yet)');
   });
 });

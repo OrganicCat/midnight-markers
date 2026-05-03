@@ -7,10 +7,13 @@ import type { Suggestion, SuggestInput, SuggestedTag } from './types';
 type RawModelOutput = {
   title?: unknown;
   tags?: unknown;
+  collectionPath?: unknown;
+  // Legacy field — older models may still emit this; we ignore it.
   collectionId?: unknown;
 };
 
 const MAX_TAGS = 5;
+const MAX_COLLECTION_DEPTH = 3;
 const DEFAULT_TIMEOUT_MS = 10_000;
 
 export type SuggestFailReason =
@@ -110,7 +113,6 @@ function shapeSuggestion(
   features: { tags: boolean; title: boolean; collection: boolean },
 ): Suggestion {
   const existingTagSet = new Set(input.existingTags);
-  const collectionIds = new Set(input.existingCollections.map((c) => c.id));
 
   const suggestedTitle =
     features.title && typeof raw.title === 'string' && raw.title.trim().length > 0
@@ -127,10 +129,15 @@ function shapeSuggestion(
       .map((name) => ({ name, isNew: !existingTagSet.has(name) }));
   }
 
-  const suggestedCollectionId =
-    features.collection && typeof raw.collectionId === 'string' && collectionIds.has(raw.collectionId)
-      ? raw.collectionId
-      : null;
+  let suggestedCollectionPath: string[] | null = null;
+  if (features.collection && Array.isArray(raw.collectionPath)) {
+    const path = raw.collectionPath
+      .filter((s): s is string => typeof s === 'string')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+      .slice(0, MAX_COLLECTION_DEPTH);
+    if (path.length > 0) suggestedCollectionPath = path;
+  }
 
-  return { suggestedTitle, suggestedTags, suggestedCollectionId };
+  return { suggestedTitle, suggestedTags, suggestedCollectionPath };
 }

@@ -8,12 +8,15 @@
   import { collections as colStore } from '$lib/storage/collections';
   import { settings } from '$lib/storage/settings';
   import { suggestForBookmarkResult } from '$lib/ai/suggest';
+  import { log } from '$lib/log';
   import type { Bookmark, Collection, Tag } from '$lib/types';
   import type { Suggestion } from '$lib/ai/types';
   import TagPicker from './TagPicker.svelte';
   import CollectionPicker from './CollectionPicker.svelte';
   import AIBanner from './AIBanner.svelte';
   import AISuggestions from './AISuggestions.svelte';
+
+  const AUTO_TAG_COUNT = 2;
 
   let bookmark = $state<Bookmark | null>(null);
   let error = $state<string | null>(null);
@@ -27,6 +30,8 @@
   let aiLatencyMs = $state<number | undefined>(undefined);
   let aiErrorMessage = $state<string | undefined>(undefined);
   let suggestion = $state<Suggestion | null>(null);
+  let appliedTagNames = $state<Set<string>>(new Set());
+  let appliedCollectionId = $state<string | null>(null);
 
   $effect(() => {
     if (!bookmark) return;
@@ -52,13 +57,14 @@
     aiModel = s.aiModel;
     aiState = 'thinking';
     const t0 = performance.now();
+    const colsWithPaths = await colStore.listWithPaths();
     const result = await suggestForBookmarkResult({
       title: b.originalTitle,
       url: b.url,
       description: b.description,
       excerpt: b.excerpt,
       existingTags: allTags.map((t) => t.name),
-      existingCollections: allCollections.map((c) => ({ id: c.id, name: c.name })),
+      existingCollections: colsWithPaths.map((c) => ({ id: c.id, path: c.path })),
     });
     aiLatencyMs = performance.now() - t0;
     if (!result.ok) {
@@ -68,6 +74,31 @@
     }
     suggestion = result.suggestion;
     aiState = 'ready';
+    await autoApplySuggestions(result.suggestion);
+  }
+
+  async function autoApplySuggestions(s: Suggestion): Promise<void> {
+    // Auto-add the top N tags.
+    const top = s.suggestedTags.slice(0, AUTO_TAG_COUNT);
+    for (const t of top) {
+      try {
+        await acceptTag(t.name, t.isNew);
+        appliedTagNames = new Set([...appliedTagNames, t.name]);
+      } catch (e) {
+        log.warn('auto-apply tag failed', t, e);
+      }
+    }
+    // Auto-resolve collection path (creating if needed).
+    if (s.suggestedCollectionPath && s.suggestedCollectionPath.length > 0) {
+      try {
+        const id = await colStore.resolvePath(s.suggestedCollectionPath);
+        allCollections = await colStore.list();
+        selectedCollectionId = id;
+        appliedCollectionId = id;
+      } catch (e) {
+        log.warn('auto-apply collection failed', s.suggestedCollectionPath, e);
+      }
+    }
   }
 
   function formatReason(r: { kind: string } & Record<string, unknown>): string {
@@ -128,14 +159,11 @@
     if (isNew) {
       const t = await tagsStore.upsertByName(name);
       allTags = await tagsStore.list();
-      selectedTagIds = [...selectedTagIds, t.id];
+      if (!selectedTagIds.includes(t.id)) selectedTagIds = [...selectedTagIds, t.id];
     } else {
       const t = allTags.find((x) => x.name === name);
       if (t && !selectedTagIds.includes(t.id)) selectedTagIds = [...selectedTagIds, t.id];
     }
-  }
-  function acceptCollection(id: string) {
-    selectedCollectionId = id;
   }
 </script>
 
@@ -162,9 +190,10 @@
         <AISuggestions
           {suggestion}
           collections={allCollections}
+          appliedTagNames={appliedTagNames}
+          appliedCollectionId={appliedCollectionId}
           onAcceptTitle={acceptTitle}
           onAcceptTag={acceptTag}
-          onAcceptCollection={acceptCollection}
         />
       {/if}
     </div>

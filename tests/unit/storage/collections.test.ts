@@ -37,4 +37,50 @@ describe('collections', () => {
     await collections.delete(c.id);
     expect(await collections.list()).toHaveLength(0);
   });
+
+  it('resolvePath creates a single new top-level collection', async () => {
+    const id = await collections.resolvePath(['Gaming']);
+    const c = await collections.get(id);
+    expect(c?.name).toBe('Gaming');
+    expect(c?.parentId).toBeNull();
+  });
+
+  it('resolvePath creates a nested chain when none exists', async () => {
+    const id = await collections.resolvePath(['Gaming', 'Path of Exile', 'Builds']);
+    const leaf = await collections.get(id);
+    expect(leaf?.name).toBe('Builds');
+    expect(leaf?.parentId).not.toBeNull();
+    const parent = await collections.get(leaf!.parentId!);
+    expect(parent?.name).toBe('Path of Exile');
+    const grand = await collections.get(parent!.parentId!);
+    expect(grand?.name).toBe('Gaming');
+    expect(grand?.parentId).toBeNull();
+  });
+
+  it('resolvePath reuses an existing chain (case-insensitive)', async () => {
+    const a = await collections.create({ name: 'Gaming' });
+    const b = await collections.create({ name: 'Path of Exile', parentId: a.id });
+    const id = await collections.resolvePath(['gaming', 'PATH OF EXILE']);
+    expect(id).toBe(b.id);
+    expect(await collections.list()).toHaveLength(2);
+  });
+
+  it('resolvePath caps depth at MAX_COLLECTION_DEPTH (3)', async () => {
+    const id = await collections.resolvePath(['A', 'B', 'C', 'D', 'E']);
+    const path = await collections.pathOf(id);
+    expect(path).toEqual(['A', 'B', 'C']);
+  });
+
+  it('listWithPaths returns paths and depth', async () => {
+    const a = await collections.create({ name: 'Gaming' });
+    const b = await collections.create({ name: 'PoE', parentId: a.id });
+    void b;
+    const out = await collections.listWithPaths();
+    const gaming = out.find((c) => c.name === 'Gaming');
+    const poe = out.find((c) => c.name === 'PoE');
+    expect(gaming?.path).toEqual(['Gaming']);
+    expect(gaming?.depth).toBe(0);
+    expect(poe?.path).toEqual(['Gaming', 'PoE']);
+    expect(poe?.depth).toBe(1);
+  });
 });
