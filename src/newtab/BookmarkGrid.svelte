@@ -20,7 +20,15 @@
 {:else}
   <div class="grid gap-2.5 grid-cols-[repeat(auto-fill,minmax(220px,1fr))] relative">
     {#each items as b, i (b.id)}
-      <div class="relative {i === selectedIndex ? 'ring-2 ring-accent-violet rounded-lg' : ''}">
+      <div
+        class="relative {i === selectedIndex ? 'ring-2 ring-accent-violet rounded-lg' : ''}"
+        role="listitem"
+        draggable="true"
+        ondragstart={(e) => {
+          e.dataTransfer?.setData('application/x-bookmark-id', b.id);
+          if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+        }}
+      >
         <BookmarkCard bookmark={b} onOpen={() => onOpen(b)} onDelete={() => onDelete(b)} />
       </div>
     {/each}

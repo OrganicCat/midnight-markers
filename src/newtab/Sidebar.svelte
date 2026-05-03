@@ -12,12 +12,16 @@
     tags,
     selection,
     onSelect,
+    onMoveBookmarkToCollection,
   }: {
     collections: Collection[];
     tags: Tag[];
     selection: Selection;
     onSelect: (s: Selection) => void;
+    onMoveBookmarkToCollection?: (bookmarkId: string, collectionId: string) => void;
   } = $props();
+
+  let dragOverId = $state<string | null>(null);
 
   function isActive(s: Selection): boolean {
     return JSON.stringify(s) === JSON.stringify(selection);
@@ -38,7 +42,18 @@
   {#if collections.length > 0}
     <div class="text-[10px] uppercase tracking-wider opacity-50 px-2 mt-4 mb-1">Collections</div>
     {#each collections as c (c.id)}
-      <button class="w-full text-left px-2 py-1 rounded hover:bg-white/5 flex items-center gap-2 {isActive({ kind: 'collection', id: c.id }) ? 'bg-white/10' : ''}" onclick={() => onSelect({ kind: 'collection', id: c.id })}>
+      <button
+        class="w-full text-left px-2 py-1 rounded hover:bg-white/5 flex items-center gap-2 {isActive({ kind: 'collection', id: c.id }) ? 'bg-white/10' : ''} {dragOverId === c.id ? 'bg-accent-violet/20 ring-1 ring-accent-violet/40' : ''}"
+        onclick={() => onSelect({ kind: 'collection', id: c.id })}
+        ondragover={(e) => { e.preventDefault(); dragOverId = c.id; if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; }}
+        ondragleave={() => { if (dragOverId === c.id) dragOverId = null; }}
+        ondrop={(e) => {
+          e.preventDefault();
+          const id = e.dataTransfer?.getData('application/x-bookmark-id');
+          if (id && onMoveBookmarkToCollection) onMoveBookmarkToCollection(id, c.id);
+          dragOverId = null;
+        }}
+      >
         <span class="w-3 h-3 rounded-sm" style="background:{c.color}"></span>
         <span class="flex-1 truncate">{c.name}</span>
       </button>
