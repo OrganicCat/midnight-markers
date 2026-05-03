@@ -3,15 +3,18 @@
   import Sidebar, { type Selection } from './Sidebar.svelte';
   import Toolbar from './Toolbar.svelte';
   import BookmarkGrid from './BookmarkGrid.svelte';
+  import BookmarkList from './BookmarkList.svelte';
   import { bookmarks } from '$lib/storage/bookmarks';
   import { collections as colStore } from '$lib/storage/collections';
   import { tags as tagsStore } from '$lib/storage/tags';
+  import { settings } from '$lib/storage/settings';
   import { storageEvents } from '$lib/storage/events';
   import { buildIndex, searchIds, type SearchIndex } from '$lib/search/index';
   import type { Bookmark, Collection, Tag } from '$lib/types';
 
   let selection = $state<Selection>({ kind: 'all' });
   let search = $state('');
+  let view = $state<'grid' | 'list'>('grid');
   let collections = $state<Collection[]>([]);
   let tags = $state<Tag[]>([]);
   let allBookmarks = $state<Bookmark[]>([]);
@@ -19,13 +22,23 @@
   let items = $state<Bookmark[]>([]);
 
   async function loadData() {
-    [collections, tags, allBookmarks] = await Promise.all([
+    const [colList, tagList, bmList, s] = await Promise.all([
       colStore.list(),
       tagsStore.list(),
       bookmarks.list({}),
+      settings.get(),
     ]);
+    collections = colList;
+    tags = tagList;
+    allBookmarks = bmList;
+    view = s.defaultView;
     index = buildIndex(allBookmarks);
   }
+
+  $effect(() => {
+    if (!index) return;
+    void settings.set({ defaultView: view });
+  });
 
   $effect(() => {
     if (!index) {
@@ -101,7 +114,11 @@
 <div class="min-h-screen flex" style="background: linear-gradient(180deg, #0b0c14 0%, #14172a 100%);">
   <Sidebar {collections} {tags} {selection} onSelect={(s) => (selection = s)} />
   <main class="flex-1 px-8 py-6 overflow-auto">
-    <Toolbar bind:search title={titleFor(selection)} count={items.length} onNewCollection={newCollection} />
-    <BookmarkGrid {items} onOpen={openBookmark} onDelete={deleteBookmark} />
+    <Toolbar bind:search bind:view title={titleFor(selection)} count={items.length} onNewCollection={newCollection} />
+    {#if view === 'grid'}
+      <BookmarkGrid {items} onOpen={openBookmark} onDelete={deleteBookmark} />
+    {:else}
+      <BookmarkList {items} {collections} {tags} onOpen={openBookmark} onDelete={deleteBookmark} />
+    {/if}
   </main>
 </div>
