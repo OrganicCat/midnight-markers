@@ -6,9 +6,14 @@
   import { bookmarks } from '$lib/storage/bookmarks';
   import { tags as tagsStore } from '$lib/storage/tags';
   import { collections as colStore } from '$lib/storage/collections';
+  import { settings } from '$lib/storage/settings';
+  import { suggestForBookmark } from '$lib/ai/suggest';
   import type { Bookmark, Collection, Tag } from '$lib/types';
+  import type { Suggestion } from '$lib/ai/types';
   import TagPicker from './TagPicker.svelte';
   import CollectionPicker from './CollectionPicker.svelte';
+  import AIBanner from './AIBanner.svelte';
+  import AISuggestions from './AISuggestions.svelte';
 
   let bookmark = $state<Bookmark | null>(null);
   let error = $state<string | null>(null);
@@ -16,6 +21,11 @@
   let allCollections = $state<Collection[]>([]);
   let selectedTagIds = $state<string[]>([]);
   let selectedCollectionId = $state<string | null>(null);
+
+  let aiState = $state<'thinking' | 'ready' | 'error' | 'disabled'>('disabled');
+  let aiModel = $state<string | undefined>(undefined);
+  let aiLatencyMs = $state<number | undefined>(undefined);
+  let suggestion = $state<Suggestion | null>(null);
 
   $effect(() => {
     if (!bookmark) return;
@@ -32,9 +42,34 @@
     }
   });
 
+  async function runAI(b: Bookmark): Promise<void> {
+    const s = await settings.get();
+    if (!s.aiKey) {
+      aiState = 'disabled';
+      return;
+    }
+    aiModel = s.aiModel;
+    aiState = 'thinking';
+    const t0 = performance.now();
+    const result = await suggestForBookmark({
+      title: b.originalTitle,
+      url: b.url,
+      description: b.description,
+      excerpt: b.excerpt,
+      existingTags: allTags.map((t) => t.name),
+      existingCollections: allCollections.map((c) => ({ id: c.id, name: c.name })),
+    });
+    aiLatencyMs = performance.now() - t0;
+    if (result === null) {
+      aiState = 'error';
+      return;
+    }
+    suggestion = result;
+    aiState = 'ready';
+  }
+
   onMount(async () => {
-    allTags = await tagsStore.list();
-    allCollections = await colStore.list();
+    [allTags, allCollections] = await Promise.all([tagsStore.list(), colStore.list()]);
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id || !tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('brave://')) {
@@ -45,7 +80,7 @@
         target: { tabId: tab.id },
         func: extractFromDocument,
       });
-      const extracted = result?.result as ExtractedMetadata;
+      const extracted = result?.result as ExtractedMetadata | undefined;
       if (!extracted) {
         error = "Couldn't read page metadata.";
         return;
@@ -56,6 +91,7 @@
       }
       const id = await performSave({ url: tab.url, extracted });
       bookmark = await bookmarks.get(id);
+      if (bookmark) void runAI(bookmark);
     } catch (e) {
       error = (e as Error).message;
     }
@@ -69,6 +105,25 @@
     if (!bookmark) return;
     await bookmarks.delete(bookmark.id);
     window.close();
+  }
+
+  async function acceptTitle(title: string) {
+    if (!bookmark) return;
+    bookmark = await bookmarks.update(bookmark.id, { title });
+  }
+  async function acceptTag(name: string, isNew: boolean) {
+    if (!bookmark) return;
+    if (isNew) {
+      const t = await tagsStore.upsertByName(name);
+      allTags = await tagsStore.list();
+      selectedTagIds = [...selectedTagIds, t.id];
+    } else {
+      const t = allTags.find((x) => x.name === name);
+      if (t && !selectedTagIds.includes(t.id)) selectedTagIds = [...selectedTagIds, t.id];
+    }
+  }
+  function acceptCollection(id: string) {
+    selectedCollectionId = id;
   }
 </script>
 
@@ -88,6 +143,20 @@
       </div>
       <button onclick={toggleStar} class="px-2 py-1 rounded {bookmark.starred ? 'text-yellow-300' : 'opacity-50'}">★</button>
     </div>
+
+    <div class="mt-3">
+      <AIBanner state={aiState} {...(aiModel ? { model: aiModel } : {})} {...(aiLatencyMs !== undefined ? { latencyMs: aiLatencyMs } : {})} />
+      {#if aiState === 'ready' && suggestion}
+        <AISuggestions
+          {suggestion}
+          collections={allCollections}
+          onAcceptTitle={acceptTitle}
+          onAcceptTag={acceptTag}
+          onAcceptCollection={acceptCollection}
+        />
+      {/if}
+    </div>
+
     <div class="mt-3">
       <div class="text-[10px] uppercase tracking-wide opacity-50 mb-1">Tags</div>
       <TagPicker bind:selectedIds={selectedTagIds} {allTags} />
@@ -98,6 +167,6 @@
     </div>
     <div class="mt-3 text-xs opacity-50">Saved · <button onclick={undoSave} class="underline">undo</button></div>
   {:else}
-    <div class="opacity-50">Saving...</div>
+    <div class="opacity-50">Saving…</div>
   {/if}
 </div>
