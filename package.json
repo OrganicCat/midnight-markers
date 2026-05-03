@@ -37,6 +37,8 @@
   },
   "dependencies": {
     "idb": "^8.0.0",
+    "minisearch": "^7.2.0",
+    "svelte-dnd-action": "^0.9.69",
     "ulid": "^2.3.0"
   }
 }
