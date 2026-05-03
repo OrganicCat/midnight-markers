@@ -5,25 +5,36 @@
   import { performSave } from './saveFlow';
   import { bookmarks } from '$lib/storage/bookmarks';
   import { tags as tagsStore } from '$lib/storage/tags';
-  import type { Bookmark, Tag } from '$lib/types';
+  import { collections as colStore } from '$lib/storage/collections';
+  import type { Bookmark, Collection, Tag } from '$lib/types';
   import TagPicker from './TagPicker.svelte';
+  import CollectionPicker from './CollectionPicker.svelte';
 
   let bookmark = $state<Bookmark | null>(null);
   let error = $state<string | null>(null);
   let allTags = $state<Tag[]>([]);
+  let allCollections = $state<Collection[]>([]);
   let selectedTagIds = $state<string[]>([]);
+  let selectedCollectionId = $state<string | null>(null);
 
   $effect(() => {
     if (!bookmark) return;
-    // Diff selectedTagIds against bookmark.tagIds and apply
     const before = new Set(bookmark.tagIds);
     const after = new Set(selectedTagIds);
     for (const id of after) if (!before.has(id)) bookmarks.addTag(bookmark.id, id);
     for (const id of before) if (!after.has(id)) bookmarks.removeTag(bookmark.id, id);
   });
 
+  $effect(() => {
+    if (!bookmark) return;
+    if (selectedCollectionId !== bookmark.collectionId) {
+      bookmarks.update(bookmark.id, { collectionId: selectedCollectionId });
+    }
+  });
+
   onMount(async () => {
     allTags = await tagsStore.list();
+    allCollections = await colStore.list();
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id || !tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('brave://')) {
@@ -80,6 +91,10 @@
     <div class="mt-3">
       <div class="text-[10px] uppercase tracking-wide opacity-50 mb-1">Tags</div>
       <TagPicker bind:selectedIds={selectedTagIds} {allTags} />
+    </div>
+    <div class="mt-3">
+      <div class="text-[10px] uppercase tracking-wide opacity-50 mb-1">Collection</div>
+      <CollectionPicker bind:selectedId={selectedCollectionId} collections={allCollections} />
     </div>
     <div class="mt-3 text-xs opacity-50">Saved · <button onclick={undoSave} class="underline">undo</button></div>
   {:else}
