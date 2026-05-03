@@ -20,6 +20,7 @@
   let allBookmarks = $state<Bookmark[]>([]);
   let index = $state<SearchIndex | null>(null);
   let items = $state<Bookmark[]>([]);
+  let selectedIndex = $state(0);
 
   async function loadData() {
     const [colList, tagList, bmList, s] = await Promise.all([
@@ -74,16 +75,84 @@
     items = [...pool].sort((a, b) => b.createdAt - a.createdAt);
   });
 
+  $effect(() => {
+    // reset selection when items change shape
+    void items;
+    if (selectedIndex >= items.length) selectedIndex = Math.max(0, items.length - 1);
+  });
+
+  function handleKey(e: KeyboardEvent) {
+    // Don't intercept when an input/textarea has focus.
+    const t = e.target as HTMLElement;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        (document.querySelector('input[placeholder^="Search"]') as HTMLInputElement | null)?.focus();
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case '/': // common search-focus shortcut
+      case 'k':
+        if ((e.metaKey || e.ctrlKey) || e.key === '/') {
+          e.preventDefault();
+          (document.querySelector('input[placeholder^="Search"]') as HTMLInputElement | null)?.focus();
+        }
+        break;
+      case 'j':
+        if (items.length > 0) selectedIndex = Math.min(items.length - 1, selectedIndex + 1);
+        break;
+      case 'ArrowDown':
+        if (items.length > 0) {
+          e.preventDefault();
+          selectedIndex = Math.min(items.length - 1, selectedIndex + 1);
+        }
+        break;
+      case 'ArrowUp':
+        if (items.length > 0) {
+          e.preventDefault();
+          selectedIndex = Math.max(0, selectedIndex - 1);
+        }
+        break;
+      case 'Enter': {
+        const b = items[selectedIndex];
+        if (b) openBookmark(b);
+        break;
+      }
+      case 'Backspace':
+      case 'Delete': {
+        const b = items[selectedIndex];
+        if (b) deleteBookmark(b);
+        break;
+      }
+      case 's':
+      case 'S': {
+        const b = items[selectedIndex];
+        if (b) bookmarks.update(b.id, { starred: !b.starred });
+        break;
+      }
+      case '1':
+        view = 'grid';
+        break;
+      case '2':
+        view = 'list';
+        break;
+    }
+  }
+
   onMount(() => {
     loadData();
     const sub = () => loadData();
     storageEvents.on('bookmarks:changed', sub);
     storageEvents.on('collections:changed', sub);
     storageEvents.on('tags:changed', sub);
+    document.addEventListener('keydown', handleKey);
     return () => {
       storageEvents.off('bookmarks:changed', sub);
       storageEvents.off('collections:changed', sub);
       storageEvents.off('tags:changed', sub);
+      document.removeEventListener('keydown', handleKey);
     };
   });
 
@@ -116,9 +185,9 @@
   <main class="flex-1 px-8 py-6 overflow-auto">
     <Toolbar bind:search bind:view title={titleFor(selection)} count={items.length} onNewCollection={newCollection} />
     {#if view === 'grid'}
-      <BookmarkGrid {items} onOpen={openBookmark} onDelete={deleteBookmark} />
+      <BookmarkGrid {items} {selectedIndex} onOpen={openBookmark} onDelete={deleteBookmark} />
     {:else}
-      <BookmarkList {items} {collections} {tags} onOpen={openBookmark} onDelete={deleteBookmark} />
+      <BookmarkList {items} {collections} {tags} {selectedIndex} onOpen={openBookmark} onDelete={deleteBookmark} />
     {/if}
   </main>
 </div>
