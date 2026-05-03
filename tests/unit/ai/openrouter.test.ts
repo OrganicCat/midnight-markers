@@ -54,6 +54,23 @@ describe('chatComplete', () => {
     expect(out).toEqual({ title: 'Hello', tags: ['foo'], collectionId: null });
   });
 
+  it('strips markdown fences when the model wraps its JSON output', async () => {
+    // Reproduces the actual Claude Haiku response shape from the bug report.
+    const fenced = '```json\n{\n  "title": "Spectre Summoner Necromancer Build Guide PoE",\n  "tags": ["poe", "necromancer", "summoner", "build-guide"],\n  "collectionId": null\n}\n```';
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ choices: [{ message: { content: fenced } }] }), { status: 200 }),
+    );
+
+    const out = (await chatComplete({
+      apiKey: 'sk-test',
+      model: 'anthropic/claude-haiku-4.5',
+      messages: [{ role: 'user', content: 'q' }],
+    })) as { title: string; tags: string[]; collectionId: null };
+    expect(out.title).toBe('Spectre Summoner Necromancer Build Guide PoE');
+    expect(out.tags).toEqual(['poe', 'necromancer', 'summoner', 'build-guide']);
+    expect(out.collectionId).toBeNull();
+  });
+
   it('throws OpenRouterError on HTTP non-2xx', async () => {
     fetchMock.mockResolvedValueOnce(new Response('{"error":"unauthorized"}', { status: 401 }));
     await expect(

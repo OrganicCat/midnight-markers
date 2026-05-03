@@ -1,4 +1,5 @@
 import { log } from '$lib/log';
+import { parseModelJSON } from './parse';
 import type { OpenRouterMessage } from './types';
 
 const BASE = 'https://openrouter.ai/api/v1';
@@ -58,11 +59,11 @@ export async function chatComplete(args: ChatCompleteArgs): Promise<unknown> {
   }
 
   try {
-    const parsed = JSON.parse(content);
+    const parsed = parseModelJSON(content);
     log.debug('chatComplete parsed', parsed);
     return parsed;
   } catch {
-    log.error('Model output was not valid JSON', { content: content.slice(0, 500) });
+    log.error('Model output was not valid JSON even after fence-stripping', { content: content.slice(0, 500) });
     throw new OpenRouterError(`Model output was not valid JSON: ${content.slice(0, 200)}`, undefined, content);
   }
 }
