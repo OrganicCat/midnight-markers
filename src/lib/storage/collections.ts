@@ -48,6 +48,60 @@ export const collections = {
     emit({ type: 'collections:changed' });
   },
 
+  /**
+   * Re-parents and/or reorders a collection.
+   *
+   * The dragged collection becomes a child of `newParentId` (or a top-level
+   * collection when `newParentId` is null) and is placed at `index` within that
+   * sibling group. `index` is measured against the sibling group *excluding* the
+   * dragged collection, and is clamped to a valid slot. The whole target group's
+   * `sortOrder` is renumbered 0..n so ordering stays dense and stable.
+   *
+   * Dropping a collection onto itself or one of its own descendants is a no-op
+   * (it would create a cycle).
+   */
+  async move(id: string, newParentId: string | null, index: number): Promise<void> {
+    const db = await getDb();
+    const dragged = await db.get('collections', id);
+    if (!dragged) throw new Error('collection not found: ' + id);
+
+    const all = await db.getAll('collections');
+
+    // Reject cycles: the new parent must not be the dragged node or a descendant of it.
+    if (newParentId) {
+      const subtree = new Set<string>([id]);
+      let grew = true;
+      while (grew) {
+        grew = false;
+        for (const c of all) {
+          if (c.parentId && subtree.has(c.parentId) && !subtree.has(c.id)) {
+            subtree.add(c.id);
+            grew = true;
+          }
+        }
+      }
+      if (subtree.has(newParentId)) return;
+    }
+
+    // Ordered target siblings, excluding the dragged node, then splice it in.
+    const siblings = all
+      .filter((c) => c.parentId === newParentId && c.id !== id)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    const at = Math.max(0, Math.min(index, siblings.length));
+    siblings.splice(at, 0, dragged);
+
+    // Renumber the whole group in one transaction so sortOrder stays dense.
+    const tx = db.transaction('collections', 'readwrite');
+    for (let i = 0; i < siblings.length; i++) {
+      const s = siblings[i]!;
+      const next: Collection = { ...s, sortOrder: i };
+      if (s.id === id) next.parentId = newParentId;
+      await tx.store.put(next);
+    }
+    await tx.done;
+    emit({ type: 'collections:changed' });
+  },
+
   async list(): Promise<Collection[]> {
     const db = await getDb();
     const rows = await db.getAll('collections');
