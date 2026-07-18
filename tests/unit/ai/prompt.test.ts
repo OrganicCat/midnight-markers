@@ -42,6 +42,28 @@ describe('buildMessages', () => {
     expect(sys).toMatch(/NEVER more than 3/);
   });
 
+  it('system message encodes the filing rule: fit first, then nest, then invent at altitude', () => {
+    const sys = buildMessages(baseInput)[0]!.content;
+    // fit-first: reuse an existing path exactly
+    expect(sys).toMatch(/fit first/i);
+    // nest a sub-folder when close but not exact
+    expect(sys).toMatch(/nest/i);
+    // prefer a two-level topic > sub-folder path
+    expect(sys).toMatch(/two levels/i);
+  });
+
+  it('system message warns against over-general, format-based, and over-specific folders', () => {
+    const sys = buildMessages(baseInput)[0]!.content;
+    // junk-drawer top folders
+    expect(sys).toMatch(/\["Learning"\]/);
+    // filing by media format instead of topic
+    expect(sys).toMatch(/format/i);
+    expect(sys).toMatch(/\["Videos", "Tutorials"\]/);
+    // over-specific top folder gets nested instead
+    expect(sys).toMatch(/\["Raspberry Pi"\]/);
+    expect(sys).toContain('["Electronics", "Single-board computers"]');
+  });
+
   it('user message includes the page title, url, description, and excerpt', () => {
     const user = buildMessages(baseInput)[1]!.content;
     expect(user).toContain('Designing for the long now');
