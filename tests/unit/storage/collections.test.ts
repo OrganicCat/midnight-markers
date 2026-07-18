@@ -71,6 +71,59 @@ describe('collections', () => {
     expect(path).toEqual(['A', 'B', 'C']);
   });
 
+  it('move re-parents a collection under a target', async () => {
+    const parent = await collections.create({ name: 'Learning' });
+    const child = await collections.create({ name: 'AI' });
+    await collections.move(child.id, parent.id, 0);
+    const moved = await collections.get(child.id);
+    expect(moved?.parentId).toBe(parent.id);
+    expect(moved?.sortOrder).toBe(0);
+  });
+
+  it('move reorders siblings and renumbers sortOrder densely', async () => {
+    const a = await collections.create({ name: 'A' });
+    const b = await collections.create({ name: 'B' });
+    const c = await collections.create({ name: 'C' });
+    // Move C to the front of the root group.
+    await collections.move(c.id, null, 0);
+    const order = (await collections.list())
+      .filter((x) => x.parentId === null)
+      .sort((x, y) => x.sortOrder - y.sortOrder)
+      .map((x) => x.name);
+    expect(order).toEqual(['C', 'A', 'B']);
+    expect((await collections.get(a.id))?.sortOrder).toBe(1);
+    expect((await collections.get(b.id))?.sortOrder).toBe(2);
+  });
+
+  it('move clamps an out-of-range index to the end of the group', async () => {
+    const parent = await collections.create({ name: 'P' });
+    await collections.create({ name: 'X', parentId: parent.id });
+    const y = await collections.create({ name: 'Y' });
+    await collections.move(y.id, parent.id, 999);
+    const kids = (await collections.list())
+      .filter((c) => c.parentId === parent.id)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((c) => c.name);
+    expect(kids).toEqual(['X', 'Y']);
+  });
+
+  it('move rejects dropping a collection onto its own descendant (cycle)', async () => {
+    const a = await collections.create({ name: 'A' });
+    const b = await collections.create({ name: 'B', parentId: a.id });
+    const c = await collections.create({ name: 'C', parentId: b.id });
+    await collections.move(a.id, c.id, 0); // would make A a child of its own grandchild
+    expect((await collections.get(a.id))?.parentId).toBeNull();
+    expect((await collections.get(b.id))?.parentId).toBe(a.id);
+    expect((await collections.get(c.id))?.parentId).toBe(b.id);
+  });
+
+  it('move to a null parent promotes a nested collection to the top level', async () => {
+    const parent = await collections.create({ name: 'Parent' });
+    const child = await collections.create({ name: 'Child', parentId: parent.id });
+    await collections.move(child.id, null, 0);
+    expect((await collections.get(child.id))?.parentId).toBeNull();
+  });
+
   it('listWithPaths returns paths and depth', async () => {
     const a = await collections.create({ name: 'Gaming' });
     const b = await collections.create({ name: 'PoE', parentId: a.id });

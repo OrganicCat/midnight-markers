@@ -182,10 +182,14 @@
   async function moveBookmarkToCollection(bookmarkId: string, collectionId: string) {
     await bookmarks.update(bookmarkId, { collectionId });
   }
+
+  async function moveCollection(id: string, parentId: string | null, index: number) {
+    await colStore.move(id, parentId, index);
+  }
 </script>
 
 <div class="min-h-screen flex" style="background: linear-gradient(180deg, #0b0c14 0%, #14172a 100%);">
-  <Sidebar {collections} {tags} {selection} onSelect={(s) => (selection = s)} onMoveBookmarkToCollection={moveBookmarkToCollection} />
+  <Sidebar {collections} {tags} {selection} onSelect={(s) => (selection = s)} onMoveBookmarkToCollection={moveBookmarkToCollection} onMoveCollection={moveCollection} />
   <main class="flex-1 px-8 py-6 overflow-auto">
     <Toolbar bind:search bind:view title={titleFor(selection)} count={items.length} onNewCollection={newCollection} />
     {#if view === 'grid'}
