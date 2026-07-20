@@ -5,12 +5,16 @@
     count,
     view = $bindable(),
     onNewCollection,
+    onResort,
+    canResort,
   }: {
     search: string;
     title: string;
     count: number;
     view: 'grid' | 'list';
     onNewCollection: () => void;
+    onResort: () => void;
+    canResort: boolean;
   } = $props();
 </script>
 
@@ -34,6 +38,12 @@
       title="List view (2)"
     >≡</button>
   </div>
+  <button
+    onclick={onResort}
+    disabled={!canResort}
+    title={canResort ? 'Reorganize with AI' : 'Pick All bookmarks or a collection to resort'}
+    class="text-xs px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-40 disabled:hover:bg-white/5"
+  >✦ Resort</button>
   <button onclick={onNewCollection} class="text-xs px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10">+ Collection</button>
 </div>
 <div class="mb-4">

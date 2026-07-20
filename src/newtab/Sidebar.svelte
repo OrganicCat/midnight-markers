@@ -14,6 +14,7 @@
     onSelect,
     onMoveBookmarkToCollection,
     onMoveCollection,
+    onResortCollection,
   }: {
     collections: Collection[];
     tags: Tag[];
@@ -21,7 +22,21 @@
     onSelect: (s: Selection) => void;
     onMoveBookmarkToCollection?: (bookmarkId: string, collectionId: string) => void;
     onMoveCollection?: (id: string, parentId: string | null, index: number) => void;
+    onResortCollection?: (id: string) => void;
   } = $props();
+
+  // Right-click menu on a collection row.
+  let menuFor = $state<{ id: string; x: number; y: number } | null>(null);
+
+  function openMenu(e: MouseEvent, id: string): void {
+    if (!onResortCollection) return;
+    e.preventDefault();
+    menuFor = { id, x: e.clientX, y: e.clientY };
+  }
+
+  function closeMenu(): void {
+    menuFor = null;
+  }
 
   const COLLECTION_MIME = 'application/x-collection-id';
   const BOOKMARK_MIME = 'application/x-bookmark-id';
@@ -146,6 +161,7 @@
         class="w-full text-left py-1 rounded hover:bg-white/5 flex items-center gap-2 {isActive({ kind: 'collection', id: c.id }) ? 'bg-white/10' : ''} {dragOverId === c.id || (dropTarget?.id === c.id && dropTarget.zone === 'into') ? 'bg-accent-violet/20 ring-1 ring-accent-violet/40' : ''} {dropTarget?.id === c.id && dropTarget.zone === 'before' ? 'shadow-[inset_0_2px_0_0_var(--color-accent-violet)]' : ''} {dropTarget?.id === c.id && dropTarget.zone === 'after' ? 'shadow-[inset_0_-2px_0_0_var(--color-accent-violet)]' : ''} {draggingId === c.id ? 'opacity-40' : ''}"
         style="padding-left: {8 + depth * 14}px; padding-right: 8px;"
         onclick={() => onSelect({ kind: 'collection', id: c.id })}
+        oncontextmenu={(e) => openMenu(e, c.id)}
         ondragstart={(e) => {
           draggingId = c.id;
           if (e.dataTransfer) {
@@ -197,3 +213,21 @@
     </button>
   </div>
 </aside>
+
+{#if menuFor}
+  <button
+    class="fixed inset-0 z-40 cursor-default"
+    aria-label="Close menu"
+    onclick={closeMenu}
+    oncontextmenu={(e) => { e.preventDefault(); closeMenu(); }}
+  ></button>
+  <div
+    class="fixed z-50 rounded-lg border border-white/10 bg-[#12131a] py-1 shadow-xl"
+    style="left: {menuFor.x}px; top: {menuFor.y}px"
+  >
+    <button
+      class="block w-full text-left text-xs px-3 py-1.5 hover:bg-white/10 whitespace-nowrap"
+      onclick={() => { const id = menuFor!.id; closeMenu(); onResortCollection?.(id); }}
+    >✦ Resort this folder</button>
+  </div>
+{/if}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { exportToJSON, importFromJSON, type ImportResult } from '$lib/storage/exportImport';
   import { importNativeBookmarks } from '$lib/native/importBookmarks';
+  import { snapshots } from '$lib/storage/snapshot';
 
   let busy = $state<'idle' | 'export' | 'import' | 'native'>('idle');
   let lastResult = $state<string | null>(null);
@@ -53,6 +54,30 @@
       busy = 'idle';
     }
   }
+
+  // --- Undo the last resort -------------------------------------------------
+
+  let lastSnapshot = $state<number | null>(null);
+  let restoring = $state(false);
+
+  async function loadSnapshot() {
+    lastSnapshot = (await snapshots.get())?.createdAt ?? null;
+  }
+
+  async function restoreSnapshot() {
+    if (!confirm('Undo the last resort? Bookmarks and folders will go back to how they were.')) return;
+    restoring = true;
+    try {
+      await snapshots.restore();
+    } finally {
+      restoring = false;
+    }
+    await loadSnapshot();
+  }
+
+  $effect(() => {
+    void loadSnapshot();
+  });
 </script>
 
 <div class="rounded-xl border border-white/10 p-5 bg-white/[0.02]">
@@ -80,6 +105,19 @@
       </button>
       <span class="text-xs opacity-50">Folder names become collections.</span>
     </div>
+
+    {#if lastSnapshot !== null}
+      <div class="pt-3 border-t border-white/10">
+        <div class="flex items-center gap-3">
+          <button class="px-3 py-1.5 rounded bg-white/5 text-sm" disabled={restoring} onclick={restoreSnapshot}>
+            {restoring ? 'Restoring…' : 'Restore last resort'}
+          </button>
+          <span class="text-xs opacity-50">
+            Undo the resort from {new Date(lastSnapshot).toLocaleString()}.
+          </span>
+        </div>
+      </div>
+    {/if}
 
     {#if lastResult}
       <p class="text-xs opacity-60 mt-2">{lastResult}</p>

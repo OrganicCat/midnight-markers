@@ -4,6 +4,10 @@
   import Toolbar from './Toolbar.svelte';
   import BookmarkGrid from './BookmarkGrid.svelte';
   import BookmarkList from './BookmarkList.svelte';
+  import ResortDialog from './ResortDialog.svelte';
+  import { snapshots } from '$lib/storage/snapshot';
+  import type { ResortScope } from '$lib/ai/resort/types';
+  import type { ApplyResult } from '$lib/ai/resort/apply';
   import { bookmarks } from '$lib/storage/bookmarks';
   import { collections as colStore } from '$lib/storage/collections';
   import { tags as tagsStore } from '$lib/storage/tags';
@@ -186,12 +190,52 @@
   async function moveCollection(id: string, parentId: string | null, index: number) {
     await colStore.move(id, parentId, index);
   }
+
+  // --- Resort ---------------------------------------------------------------
+
+  let resortScope = $state<ResortScope | null>(null);
+  let undoToast = $state<{ message: string } | null>(null);
+  let undoTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const canResort = $derived(selection.kind === 'all' || selection.kind === 'collection');
+
+  const resortScopeLabel = $derived.by(() => {
+    const s = resortScope;
+    if (s === null) return '';
+    if (s.kind === 'all') return 'All bookmarks';
+    return collections.find((c) => c.id === s.id)?.name ?? 'Collection';
+  });
+
+  function openResort() {
+    if (selection.kind === 'all') resortScope = { kind: 'all' };
+    else if (selection.kind === 'collection') resortScope = { kind: 'collection', id: selection.id };
+  }
+
+  function resortCollection(id: string) {
+    resortScope = { kind: 'collection', id };
+  }
+
+  async function undoResort() {
+    if (undoTimer) clearTimeout(undoTimer);
+    undoToast = null;
+    await snapshots.restore();
+    await loadData();
+  }
+
+  function onResortApplied(result: ApplyResult) {
+    resortScope = null;
+    const total = result.moved + result.created + result.renamed + result.merged + result.deleted;
+    undoToast = { message: `Resorted — ${total} change${total === 1 ? '' : 's'} applied.` };
+    if (undoTimer) clearTimeout(undoTimer);
+    undoTimer = setTimeout(() => (undoToast = null), 30_000);
+    void loadData();
+  }
 </script>
 
 <div class="min-h-screen flex" style="background: linear-gradient(180deg, #0b0c14 0%, #14172a 100%);">
-  <Sidebar {collections} {tags} {selection} onSelect={(s) => (selection = s)} onMoveBookmarkToCollection={moveBookmarkToCollection} onMoveCollection={moveCollection} />
+  <Sidebar {collections} {tags} {selection} onSelect={(s) => (selection = s)} onMoveBookmarkToCollection={moveBookmarkToCollection} onMoveCollection={moveCollection} onResortCollection={resortCollection} />
   <main class="flex-1 px-8 py-6 overflow-auto">
-    <Toolbar bind:search bind:view title={titleFor(selection)} count={items.length} onNewCollection={newCollection} />
+    <Toolbar bind:search bind:view title={titleFor(selection)} count={items.length} onNewCollection={newCollection} onResort={openResort} {canResort} />
     {#if view === 'grid'}
       <BookmarkGrid {items} {selectedIndex} onOpen={openBookmark} onDelete={deleteBookmark} />
     {:else}
@@ -199,3 +243,19 @@
     {/if}
   </main>
 </div>
+
+{#if resortScope}
+  <ResortDialog
+    scope={resortScope}
+    scopeLabel={resortScopeLabel}
+    onClose={() => (resortScope = null)}
+    onApplied={onResortApplied}
+  />
+{/if}
+
+{#if undoToast}
+  <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-lg border border-white/10 bg-[#12131a] px-4 py-3 shadow-xl">
+    <span class="text-xs">{undoToast.message}</span>
+    <button class="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20" onclick={undoResort}>Undo</button>
+  </div>
+{/if}
