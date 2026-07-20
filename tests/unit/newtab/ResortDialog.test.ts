@@ -11,7 +11,7 @@ import ResortDialog from '../../../src/newtab/ResortDialog.svelte';
 beforeEach(async () => {
   globalThis.indexedDB = new IDBFactory();
   _resetDbForTests();
-  await settings.set({ aiKey: 'sk-test' });
+  await settings.set({ aiKey: 'sk-test', aiConsentAt: 1 });
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -96,7 +96,7 @@ describe('ResortDialog', () => {
   });
 
   it('refuses to run without an API key', async () => {
-    await settings.set({ aiKey: '' });
+    await settings.set({ aiKey: '', aiConsentAt: 1 });
     await seed();
     render(ResortDialog, { props: props() });
     await waitFor(() => expect(screen.getByText(/no api key/i)).toBeTruthy());

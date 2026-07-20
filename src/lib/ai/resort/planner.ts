@@ -57,6 +57,7 @@ export function resortReasonMessage(r: ResortFailReason): string {
   switch (r.kind) {
     case 'no-key': return 'No API key set';
     case 'no-features': return 'All AI features disabled';
+    case 'no-consent': return 'Data sharing not accepted yet — see Settings';
     case 'http': return `OpenRouter HTTP ${r.status}: ${r.message}`;
     case 'timeout': return 'Request timed out or was cancelled';
     case 'parse': return `Bad model output: ${r.message}`;

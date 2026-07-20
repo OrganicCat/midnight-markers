@@ -32,14 +32,14 @@ describe('suggestForBookmark', () => {
   });
 
   it('returns null when all AI features are off', async () => {
-    await settings.set({ aiKey: 'sk-test', aiFeatures: { tags: false, title: false, collection: false } });
+    await settings.set({ aiKey: 'sk-test', aiConsentAt: 1, aiFeatures: { tags: false, title: false, collection: false } });
     const out = await suggestForBookmark(baseInput);
     expect(out).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('returns parsed suggestions on a valid response', async () => {
-    await settings.set({ aiKey: 'sk-test' });
+    await settings.set({ aiKey: 'sk-test', aiConsentAt: 1, aiFeatures: { tags: true, title: true, collection: true } });
     fetchMock.mockResolvedValueOnce(
       new Response(
         JSON.stringify({
@@ -63,7 +63,7 @@ describe('suggestForBookmark', () => {
   });
 
   it('caps collection path at 3 levels', async () => {
-    await settings.set({ aiKey: 'sk-test' });
+    await settings.set({ aiKey: 'sk-test', aiConsentAt: 1, aiFeatures: { tags: true, title: true, collection: true } });
     fetchMock.mockResolvedValueOnce(
       new Response(
         JSON.stringify({
@@ -79,7 +79,7 @@ describe('suggestForBookmark', () => {
   });
 
   it('returns null path when collectionPath is missing', async () => {
-    await settings.set({ aiKey: 'sk-test' });
+    await settings.set({ aiKey: 'sk-test', aiConsentAt: 1, aiFeatures: { tags: true, title: true, collection: true } });
     fetchMock.mockResolvedValueOnce(
       new Response(
         JSON.stringify({
@@ -93,7 +93,7 @@ describe('suggestForBookmark', () => {
   });
 
   it('returns null path when collection feature is off', async () => {
-    await settings.set({ aiKey: 'sk-test', aiFeatures: { tags: true, title: true, collection: false } });
+    await settings.set({ aiKey: 'sk-test', aiConsentAt: 1, aiFeatures: { tags: true, title: true, collection: false } });
     fetchMock.mockResolvedValueOnce(
       new Response(
         JSON.stringify({
@@ -109,7 +109,7 @@ describe('suggestForBookmark', () => {
   });
 
   it('lowercases tag names and caps total tags at 5', async () => {
-    await settings.set({ aiKey: 'sk-test' });
+    await settings.set({ aiKey: 'sk-test', aiConsentAt: 1, aiFeatures: { tags: true, title: true, collection: true } });
     fetchMock.mockResolvedValueOnce(
       new Response(
         JSON.stringify({
@@ -125,7 +125,7 @@ describe('suggestForBookmark', () => {
   });
 
   it('respects feature flags — drops title when title flag off', async () => {
-    await settings.set({ aiKey: 'sk-test', aiFeatures: { tags: true, title: false, collection: true } });
+    await settings.set({ aiKey: 'sk-test', aiConsentAt: 1, aiFeatures: { tags: true, title: false, collection: true } });
     fetchMock.mockResolvedValueOnce(
       new Response(
         JSON.stringify({
@@ -142,14 +142,14 @@ describe('suggestForBookmark', () => {
   });
 
   it('returns null on OpenRouter error (graceful degrade)', async () => {
-    await settings.set({ aiKey: 'sk-test' });
+    await settings.set({ aiKey: 'sk-test', aiConsentAt: 1, aiFeatures: { tags: true, title: true, collection: true } });
     fetchMock.mockResolvedValueOnce(new Response('', { status: 500 }));
     const out = await suggestForBookmark(baseInput);
     expect(out).toBeNull();
   });
 
   it('returns null on timeout', async () => {
-    await settings.set({ aiKey: 'sk-test' });
+    await settings.set({ aiKey: 'sk-test', aiConsentAt: 1, aiFeatures: { tags: true, title: true, collection: true } });
     fetchMock.mockImplementationOnce(
       (_u: string, init: RequestInit) =>
         new Promise((_, reject) => {

@@ -64,6 +64,12 @@
 
   async function plan(): Promise<void> {
     const s = await settings.get();
+    if (s.aiConsentAt === null) {
+      errorMessage =
+        'Resort sends your page titles and URLs to OpenRouter. Accept the data-sharing disclosure in Settings to enable it.';
+      phase = 'error';
+      return;
+    }
     if (!s.aiKey) {
       errorMessage = 'No API key set — add one in Settings.';
       phase = 'error';

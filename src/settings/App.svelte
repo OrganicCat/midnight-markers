@@ -43,8 +43,26 @@
   }
 
   async function toggleFeature(k: 'tags' | 'title' | 'collection') {
-    if (!s) return;
+    if (!s || s.aiConsentAt === null) return;
     await settings.set({ aiFeatures: { ...s.aiFeatures, [k]: !s.aiFeatures[k] } });
+    await refresh();
+  }
+
+  async function acceptConsent() {
+    await settings.set({ aiConsentAt: Date.now() });
+    await refresh();
+  }
+
+  /**
+   * Withdrawing consent also forces every feature off, so revoking can never
+   * leave a toggle in a state that would transmit.
+   */
+  async function revokeConsent() {
+    if (!confirm('Withdraw consent? All AI features will be turned off.')) return;
+    await settings.set({
+      aiConsentAt: null,
+      aiFeatures: { tags: false, title: false, collection: false },
+    });
     await refresh();
   }
 
@@ -85,8 +103,15 @@
 
       <ScalePicker bind:value={scaleDraft} />
 
-      <div class="rounded-xl border border-white/10 p-5 bg-white/[0.02]">
-        <div class="text-[0.625rem] uppercase tracking-wider opacity-50 mb-3">AI features</div>
+      <PrivacyNote consentAt={s.aiConsentAt} onAccept={acceptConsent} onRevoke={revokeConsent} />
+
+      <div class="rounded-xl border border-white/10 p-5 bg-white/[0.02] {s.aiConsentAt === null ? 'opacity-50' : ''}">
+        <div class="flex items-baseline gap-2 mb-3">
+          <span class="text-[0.625rem] uppercase tracking-wider opacity-50">AI features</span>
+          {#if s.aiConsentAt === null}
+            <span class="text-[0.625rem] opacity-60">— accept the disclosure above to enable</span>
+          {/if}
+        </div>
         {#each [['tags','Suggest tags','Prefer existing · max 2 new per save'],['title','Suggest title','Show a friendlier title; original always recoverable'],['collection','Suggest collection','Pick from existing collections only']] as [key, label, desc]}
           <label class="flex items-start justify-between gap-4 py-2">
             <div>
@@ -95,6 +120,7 @@
             </div>
             <input
               type="checkbox"
+              disabled={s.aiConsentAt === null}
               checked={s.aiFeatures[key as 'tags'|'title'|'collection']}
               onchange={() => toggleFeature(key as 'tags'|'title'|'collection')}
               class="mt-1 accent-accent-violet"
@@ -102,8 +128,6 @@
           </label>
         {/each}
       </div>
-
-      <PrivacyNote />
       <Diagnostics />
       <DataSection />
     {:else}

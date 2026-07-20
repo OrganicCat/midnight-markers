@@ -3,7 +3,7 @@ import type { Bookmark, Collection, Tag, Settings } from '$lib/types';
 import type { ResortSnapshot } from './snapshot';
 
 export const DB_NAME = 'midnight-markers';
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 export interface MMSchema extends DBSchema {
   bookmarks: {
@@ -22,6 +22,8 @@ export interface MMSchema extends DBSchema {
   tags: { key: string; value: Tag; indexes: { 'by-name': string } };
   settings: { key: string; value: Settings };
   snapshots: { key: string; value: ResortSnapshot };
+  /** Non-extractable CryptoKey material. Never leaves the browser. */
+  secrets: { key: string; value: CryptoKey };
 }
 
 let dbPromise: Promise<IDBPDatabase<MMSchema>> | null = null;
@@ -49,6 +51,9 @@ export function getDb(): Promise<IDBPDatabase<MMSchema>> {
         }
         if (oldVersion < 2) {
           db.createObjectStore('snapshots', { keyPath: 'id' });
+        }
+        if (oldVersion < 3) {
+          db.createObjectStore('secrets');
         }
       },
     });

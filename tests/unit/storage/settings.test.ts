@@ -14,7 +14,9 @@ describe('settings store', () => {
     const s = await settings.get();
     expect(s.aiKey).toBeNull();
     expect(s.aiModel).toBe('anthropic/claude-haiku-4.5');
-    expect(s.aiFeatures).toEqual({ tags: true, title: true, collection: true });
+    // AI ships off: no data may leave the device before explicit consent.
+    expect(s.aiFeatures).toEqual({ tags: false, title: false, collection: false });
+    expect(s.aiConsentAt).toBeNull();
     expect(s.defaultView).toBe('grid');
   });
 

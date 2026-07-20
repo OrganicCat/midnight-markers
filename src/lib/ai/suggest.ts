@@ -19,6 +19,7 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 export type SuggestFailReason =
   | { kind: 'no-key' }
   | { kind: 'no-features' }
+  | { kind: 'no-consent' }
   | { kind: 'http'; status: number; body: string; message: string }
   | { kind: 'timeout' }
   | { kind: 'parse'; message: string; body: string }
@@ -33,6 +34,14 @@ export async function suggestForBookmarkResult(
   options: { timeoutMs?: number } = {},
 ): Promise<SuggestResult> {
   const s = await settings.get();
+
+  // Consent is checked before anything else: no disclosure accepted means no
+  // page data leaves the device, regardless of key or feature toggles.
+  if (s.aiConsentAt === null) {
+    log.info('AI suggest skipped: no consent recorded');
+    return { ok: false, reason: { kind: 'no-consent' } };
+  }
+
   if (!s.aiKey) {
     log.info('AI suggest skipped: no key set');
     return { ok: false, reason: { kind: 'no-key' } };
@@ -100,6 +109,7 @@ function reasonMessage(r: SuggestFailReason): string {
   switch (r.kind) {
     case 'no-key': return 'No API key set';
     case 'no-features': return 'All AI features disabled';
+    case 'no-consent': return 'Data sharing not accepted yet';
     case 'http': return `OpenRouter HTTP ${r.status}: ${r.message}`;
     case 'timeout': return 'Request timed out';
     case 'parse': return `Bad model output: ${r.message}`;

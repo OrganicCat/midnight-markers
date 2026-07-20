@@ -44,6 +44,12 @@ export type Settings = {
   aiKey: string | null;
   aiModel: string;
   aiFeatures: AIFeatures;
+  /**
+   * Timestamp at which the user affirmatively consented to sending page data
+   * to OpenRouter, or null if they never have. Nothing is transmitted while
+   * this is null — see canUseAI() in $lib/ai/consent.
+   */
+  aiConsentAt: number | null;
   defaultView: 'grid' | 'list';
   defaultCollectionId: string | null;
   uiScale: number; // multiplier on root font-size; 1.0 = 100%, range 0.9–1.5
