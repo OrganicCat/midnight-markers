@@ -18,5 +18,11 @@
 html, body { background: var(--color-bg-base); color: #e8e9f0; }
 body { font-family: var(--font-sans); margin: 0; }
 
+/* Native <select> popup uses OS colors by default — force the dropdown list
+   to match the dark app theme instead of rendering with a white system
+   background. */
+select { color-scheme: dark; }
+option { background: var(--color-bg-deep); color: #e8e9f0; }
+
 .bm-card { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; transition: background 200ms ease, transform 200ms ease; }
 .bm-card:hover { background: rgba(255, 255, 255, 0.05); transform: translateY(-1px); }
