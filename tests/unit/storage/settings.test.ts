@@ -12,8 +12,8 @@ beforeEach(() => {
 describe('settings store', () => {
   it('returns defaults when nothing is stored', async () => {
     const s = await settings.get();
-    expect(s.aiKey).toBeNull();
-    expect(s.aiModel).toBe('anthropic/claude-haiku-4.5');
+    expect(s.openrouterKey).toBeNull();
+    expect(s.openrouterModel).toBe('anthropic/claude-haiku-4.5');
     // AI ships off: no data may leave the device before explicit consent.
     expect(s.aiFeatures).toEqual({ tags: false, title: false, collection: false });
     expect(s.aiConsentAt).toBeNull();
@@ -21,17 +21,17 @@ describe('settings store', () => {
   });
 
   it('round-trips settings.set / settings.get', async () => {
-    await settings.set({ aiKey: 'sk-ant-test', aiModel: 'openai/gpt-4o-mini' });
+    await settings.set({ openrouterKey: 'sk-ant-test', openrouterModel: 'openai/gpt-4o-mini' });
     const s = await settings.get();
-    expect(s.aiKey).toBe('sk-ant-test');
-    expect(s.aiModel).toBe('openai/gpt-4o-mini');
+    expect(s.openrouterKey).toBe('sk-ant-test');
+    expect(s.openrouterModel).toBe('openai/gpt-4o-mini');
   });
 
   it('partial set merges with existing', async () => {
-    await settings.set({ aiKey: 'sk-1' });
+    await settings.set({ openrouterKey: 'sk-1' });
     await settings.set({ defaultView: 'list' });
     const s = await settings.get();
-    expect(s.aiKey).toBe('sk-1');
+    expect(s.openrouterKey).toBe('sk-1');
     expect(s.defaultView).toBe('list');
   });
 

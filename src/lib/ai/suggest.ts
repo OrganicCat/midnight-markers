@@ -1,6 +1,6 @@
 import { settings } from '$lib/storage/settings';
 import { log, recordAIError } from '$lib/log';
-import { chatComplete, OpenRouterError } from './openrouter';
+import { activeKey, activeModel, activeProvider, isProviderError } from './provider';
 import { buildMessages } from './prompt';
 import type { Suggestion, SuggestInput, SuggestedTag } from './types';
 
@@ -20,7 +20,7 @@ export type SuggestFailReason =
   | { kind: 'no-key' }
   | { kind: 'no-features' }
   | { kind: 'no-consent' }
-  | { kind: 'http'; status: number; body: string; message: string }
+  | { kind: 'http'; status: number; body: string; message: string; provider: string }
   | { kind: 'timeout' }
   | { kind: 'parse'; message: string; body: string }
   | { kind: 'unknown'; message: string };
@@ -42,8 +42,12 @@ export async function suggestForBookmarkResult(
     return { ok: false, reason: { kind: 'no-consent' } };
   }
 
-  if (!s.aiKey) {
-    log.info('AI suggest skipped: no key set');
+  const provider = activeProvider(s);
+  const apiKey = activeKey(s);
+  const model = activeModel(s);
+
+  if (!apiKey) {
+    log.info('AI suggest skipped: no key set', { provider: provider.id });
     return { ok: false, reason: { kind: 'no-key' } };
   }
 
@@ -58,25 +62,25 @@ export async function suggestForBookmarkResult(
   const timeout = setTimeout(() => ac.abort(), timeoutMs);
 
   try {
-    const raw = (await chatComplete({
-      apiKey: s.aiKey,
-      model: s.aiModel,
+    const raw = (await provider.chatComplete({
+      apiKey,
+      model,
       messages: buildMessages(input),
       signal: ac.signal,
     })) as RawModelOutput;
 
-    log.info('AI suggest succeeded', { model: s.aiModel });
+    log.info('AI suggest succeeded', { provider: provider.id, model });
     return { ok: true, suggestion: shapeSuggestion(raw, input, s.aiFeatures) };
   } catch (e) {
-    const reason = classifyError(e);
+    const reason = classifyError(e, provider.label);
     log.error('AI suggest failed', reason);
     void recordAIError({
       ts: Date.now(),
       message: reasonMessage(reason),
       ...('status' in reason ? { status: reason.status } : {}),
       ...('body' in reason ? { body: reason.body } : {}),
-      model: s.aiModel,
-      url: 'https://openrouter.ai/api/v1/chat/completions',
+      model,
+      url: provider.endpointUrl,
     });
     return { ok: false, reason };
   } finally {
@@ -93,10 +97,16 @@ export async function suggestForBookmark(
   return r.ok ? r.suggestion : null;
 }
 
-function classifyError(e: unknown): SuggestFailReason {
-  if (e instanceof OpenRouterError) {
+function classifyError(e: unknown, providerLabel: string): SuggestFailReason {
+  if (isProviderError(e)) {
     if (e.status !== undefined) {
-      return { kind: 'http', status: e.status, body: e.body ?? '', message: e.message };
+      return {
+        kind: 'http',
+        status: e.status,
+        body: e.body ?? '',
+        message: e.message,
+        provider: providerLabel,
+      };
     }
     return { kind: 'parse', message: e.message, body: e.body ?? '' };
   }
@@ -110,7 +120,7 @@ function reasonMessage(r: SuggestFailReason): string {
     case 'no-key': return 'No API key set';
     case 'no-features': return 'All AI features disabled';
     case 'no-consent': return 'Data sharing not accepted yet';
-    case 'http': return `OpenRouter HTTP ${r.status}: ${r.message}`;
+    case 'http': return `${r.provider} HTTP ${r.status}: ${r.message}`;
     case 'timeout': return 'Request timed out';
     case 'parse': return `Bad model output: ${r.message}`;
     case 'unknown': return r.message;

@@ -36,6 +36,6 @@ describe('HelpDialog', () => {
 
   it('says AI is off until a key is added', () => {
     render(HelpDialog, { props: { onClose: () => {}, onStartTour: () => {} } });
-    expect(screen.getByText(/off until you add your own OpenRouter key/i)).toBeTruthy();
+    expect(screen.getByText(/off until you add your own OpenRouter or Anthropic key/i)).toBeTruthy();
   });
 });

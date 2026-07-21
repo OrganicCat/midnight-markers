@@ -47,9 +47,11 @@ sending page content off-device.
 > entire library at once, showing you a preview of every proposed change before
 > anything is applied.
 >
-> AI features are OFF by default and require your own OpenRouter API key. When
+> AI features are OFF by default and require your own OpenRouter or Anthropic
+> API key. When
 > enabled, the page title, URL, description, a short excerpt, and your existing
-> tag and collection names are sent directly from your browser to OpenRouter
+> tag and collection names are sent directly from your browser to the AI
+> provider you selected
 > under your own key and billed to your own account. Nothing passes through any
 > server we operate. You are shown exactly what is sent and must accept it
 > before anything is transmitted, and you can withdraw consent at any time.
@@ -86,8 +88,9 @@ Paste each into the matching field on the Privacy tab.
 > Schedules a once-daily background check for broken links in the user's saved
 > bookmarks, so dead pages can be flagged. Used for no other purpose.
 
-**Host permission — https://openrouter.ai/\***
-> Required to send optional AI suggestion requests to the OpenRouter API using
+**Host permission — https://openrouter.ai/\* and https://api.anthropic.com/\***
+> Required to send optional AI suggestion requests to the AI provider you
+> selected (OpenRouter or Anthropic), using
 > the user's own API key. This is the only external host the extension ever
 > contacts, and requests are only made when the user has enabled AI features
 > and accepted the in-product data-sharing disclosure.
@@ -99,15 +102,17 @@ Tick exactly these, and no others:
 - [x] **Personally identifiable information** — no
 - [x] **Health information** — no
 - [x] **Financial and payment information** — no
-- [x] **Authentication information** — **YES** (the user's OpenRouter API key
+- [x] **Authentication information** — **YES** (the user's OpenRouter and/or
+      Anthropic API key
       is stored locally)
 - [x] **Personal communications** — no
 - [x] **Location** — no
 - [x] **Web history** — **YES** (URLs and titles of pages the user chooses to
-      save; sent to OpenRouter only when AI features are enabled)
+      save; sent to the selected AI provider only when AI features are enabled)
 - [x] **User activity** — no
 - [x] **Website content** — **YES** (page description and up to 500 characters
-      of text, sent to OpenRouter only when AI features are enabled)
+      of text, sent to the selected AI provider only when AI features are
+      enabled)
 
 Then affirm all three certifications:
 
@@ -125,7 +130,8 @@ rejection for bring-your-own-key extensions.
 > immediately with no configuration — open a new tab to see the library, or
 > click the toolbar icon on any page to save it.
 >
-> The optional AI features require an OpenRouter API key. To review them:
+> The optional AI features require an OpenRouter or Anthropic API key. To
+> review them:
 > 1. Open the extension's Settings page.
 > 2. Under "Privacy & data sharing", click "I understand — enable AI features".
 > 3. Paste this test key: TODO_INSERT_REVIEWER_TEST_KEY
@@ -136,9 +142,9 @@ rejection for bring-your-own-key extensions.
 >
 > Note that AI features are deliberately disabled until step 2 is completed;
 > this is the affirmative consent gate. No network request is made to
-> OpenRouter before consent is recorded.
+> either provider before consent is recorded.
 
-**Before submitting:** create a *dedicated* OpenRouter key for review with a low
+**Before submitting:** create a *dedicated* key for review with a low
 spending cap, and revoke it after the extension is approved.
 
 ## Graphic assets checklist

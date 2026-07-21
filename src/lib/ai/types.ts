@@ -18,14 +18,22 @@ export type Suggestion = {
   suggestedCollectionPath: string[] | null; // path of names, top→leaf, may include new names
 };
 
-export type OpenRouterMessage = {
+/**
+ * Provider-agnostic message shape. The prompt builders emit an OpenAI-shaped
+ * list with the system prompt first; the Anthropic path splits that leading
+ * system message out (see anthropic.ts splitSystem).
+ */
+export type ChatMessage = {
   role: 'system' | 'user' | 'assistant';
   content: string;
 };
 
+/** @deprecated Use ChatMessage — kept so existing imports keep compiling. */
+export type OpenRouterMessage = ChatMessage;
+
 export type ChatCompletionRequest = {
   model: string;
-  messages: OpenRouterMessage[];
+  messages: ChatMessage[];
   temperature?: number;
   response_format?: { type: 'json_object' };
 };

@@ -6,8 +6,11 @@ import type { Settings } from '$lib/types';
 const KEY = 'singleton';
 
 export const DEFAULT_SETTINGS: Settings = {
-  aiKey: null,
-  aiModel: 'anthropic/claude-haiku-4.5',
+  aiProvider: 'openrouter',
+  openrouterKey: null,
+  openrouterModel: 'anthropic/claude-haiku-4.5',
+  anthropicKey: null,
+  anthropicModel: 'claude-haiku-4-5',
   // Off by default. Nothing is sent anywhere until the user reads the
   // disclosure, accepts it, and turns a feature on. See aiConsentAt.
   aiFeatures: { tags: false, title: false, collection: false },
@@ -19,16 +22,32 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 /**
- * What actually lands in IndexedDB. The API key is never persisted in the
- * clear: it lives in `aiKeySealed` as an AES-GCM envelope whose key is a
- * non-extractable CryptoKey (see ./crypto). `aiKey` is absent from the stored
- * shape; it exists only on the in-memory Settings object callers see.
+ * What actually lands in IndexedDB. No API key is ever persisted in the clear:
+ * each lives in its own AES-GCM envelope whose key is a non-extractable
+ * CryptoKey (see ./crypto). The plaintext key fields are absent from the
+ * stored shape; they exist only on the in-memory Settings object callers see.
  */
-type StoredSettings = Omit<Settings, 'aiKey'> & {
+type StoredSettings = Omit<Settings, 'openrouterKey' | 'anthropicKey'> & {
+  openrouterKeySealed?: Sealed | null;
+  anthropicKeySealed?: Sealed | null;
+  /** Legacy plaintext fields, migrated away on first read. */
+  openrouterKey?: string | null;
+  anthropicKey?: string | null;
+  /** Pre-v0.4 single-provider shape: the OpenRouter key and model. */
   aiKeySealed?: Sealed | null;
-  /** Legacy plaintext field, migrated away on first read. Pre-v0.3 only. */
   aiKey?: string | null;
+  aiModel?: string;
 };
+
+/** Strips every plaintext-key and legacy field so none can survive a write. */
+function scrub(s: StoredSettings): StoredSettings {
+  delete s.openrouterKey;
+  delete s.anthropicKey;
+  delete s.aiKey;
+  delete s.aiKeySealed;
+  delete s.aiModel;
+  return s;
+}
 
 export const settings = {
   async get(): Promise<Settings> {
@@ -36,25 +55,80 @@ export const settings = {
     const stored = (await db.get('settings', KEY)) as StoredSettings | undefined;
     if (!stored) return { ...DEFAULT_SETTINGS };
 
-    const { aiKeySealed, aiKey: legacyPlaintext, ...rest } = stored;
+    const {
+      openrouterKeySealed,
+      anthropicKeySealed,
+      openrouterKey: legacyOpenrouterPlaintext,
+      anthropicKey: legacyAnthropicPlaintext,
+      aiKeySealed: legacySealed,
+      aiKey: legacyPlaintext,
+      aiModel: legacyModel,
+      ...rest
+    } = stored;
 
-    let aiKey: string | null = null;
-    if (isSealed(aiKeySealed)) {
-      aiKey = await unseal(aiKeySealed);
+    let openrouterKey: string | null = null;
+    let anthropicKey: string | null = null;
+    // Set when this read has to rewrite the record to complete a migration.
+    let migratedModel: string | undefined;
+    let needsWriteback = false;
+
+    if (isSealed(openrouterKeySealed)) {
+      openrouterKey = await unseal(openrouterKeySealed);
+    } else if (isSealed(legacySealed)) {
+      // Pre-v0.4: a single sealed key that was, by definition, the OpenRouter
+      // one. Re-home it without ever putting it back on disk in the clear.
+      openrouterKey = await unseal(legacySealed);
+      needsWriteback = true;
     } else if (typeof legacyPlaintext === 'string' && legacyPlaintext.length > 0) {
-      // Upgrade in place: an older build stored this in the clear. Written
-      // directly rather than through set(), which would recurse back here.
-      aiKey = legacyPlaintext;
-      const migrated: StoredSettings = {
-        ...DEFAULT_SETTINGS,
-        ...rest,
-        aiKeySealed: await seal(aiKey),
-      };
-      delete migrated.aiKey;
+      // Pre-v0.3: stored in the clear by an older build. Seal it now.
+      openrouterKey = legacyPlaintext;
+      needsWriteback = true;
+    } else if (
+      typeof legacyOpenrouterPlaintext === 'string' &&
+      legacyOpenrouterPlaintext.length > 0
+    ) {
+      openrouterKey = legacyOpenrouterPlaintext;
+      needsWriteback = true;
+    }
+
+    if (isSealed(anthropicKeySealed)) {
+      anthropicKey = await unseal(anthropicKeySealed);
+    } else if (
+      typeof legacyAnthropicPlaintext === 'string' &&
+      legacyAnthropicPlaintext.length > 0
+    ) {
+      anthropicKey = legacyAnthropicPlaintext;
+      needsWriteback = true;
+    }
+
+    // Pre-v0.4 `aiModel` was the OpenRouter model. Only adopt it when the new
+    // field is absent, so a completed migration is never undone.
+    if (typeof legacyModel === 'string' && legacyModel.length > 0 && !rest.openrouterModel) {
+      migratedModel = legacyModel;
+      needsWriteback = true;
+    }
+
+    const result: Settings = {
+      ...DEFAULT_SETTINGS,
+      ...rest,
+      ...(migratedModel ? { openrouterModel: migratedModel } : {}),
+      openrouterKey,
+      anthropicKey,
+    };
+
+    if (needsWriteback) {
+      // Written directly rather than through set(), which would recurse back
+      // here. Every legacy field is scrubbed so none can survive.
+      const { openrouterKey: ork, anthropicKey: ank, ...plain } = result;
+      const migrated: StoredSettings = scrub({
+        ...plain,
+        openrouterKeySealed: ork ? await seal(ork) : null,
+        anthropicKeySealed: ank ? await seal(ank) : null,
+      });
       await db.put('settings', migrated as unknown as Settings, KEY);
     }
 
-    return { ...DEFAULT_SETTINGS, ...rest, aiKey };
+    return result;
   },
 
   /**
@@ -72,13 +146,12 @@ export const settings = {
       const current = await this.get();
       const next: Settings = { ...current, ...patch };
 
-      const { aiKey, ...rest } = next;
-      const toStore: StoredSettings = {
+      const { openrouterKey, anthropicKey, ...rest } = next;
+      const toStore: StoredSettings = scrub({
         ...rest,
-        aiKeySealed: aiKey ? await seal(aiKey) : null,
-      };
-      // Guarantee the legacy plaintext field cannot survive a write.
-      delete toStore.aiKey;
+        openrouterKeySealed: openrouterKey ? await seal(openrouterKey) : null,
+        anthropicKeySealed: anthropicKey ? await seal(anthropicKey) : null,
+      });
 
       await db.put('settings', toStore as unknown as Settings, KEY);
       emit({ type: 'settings:changed' });

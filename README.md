@@ -6,7 +6,7 @@ A dark, polished bookmark extension for Brave & Chrome — Raindrop-flavored, mi
 
 - **New tab page** as your bookmark library: card grid (default) or dense list.
 - **Toolbar popup** for one-tap save with star, tags, collection, AI suggestions.
-- **AI suggestions** via OpenRouter (BYOK): friendlier title, tag picks, collection routing.
+- **AI suggestions** via OpenRouter or Anthropic (BYOK): friendlier title, tag picks, collection routing.
 - **Native bookmarks import** in one click (folder names → collections).
 - **JSON export/import** for portable backups.
 - **Broken-link checker** runs daily in the background.
@@ -28,7 +28,7 @@ A dark, polished bookmark extension for Brave & Chrome — Raindrop-flavored, mi
 
 1. `npm run build`
 2. Brave/Chrome → Extensions → enable Developer mode → Load unpacked → pick `dist/`.
-3. Right-click the toolbar icon → Options to add an OpenRouter API key (optional, enables AI).
+3. Right-click the toolbar icon → Options to pick a provider and add an OpenRouter or Anthropic API key (optional, enables AI).
 
 ## Docs
 

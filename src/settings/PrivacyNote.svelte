@@ -1,10 +1,14 @@
 <script lang="ts">
   let {
     consentAt,
+    providerLabel,
+    privacyUrl,
     onAccept,
     onRevoke,
   }: {
     consentAt: number | null;
+    providerLabel: string;
+    privacyUrl: string;
     onAccept: () => void;
     onRevoke: () => void;
   } = $props();
@@ -23,7 +27,8 @@
 
   <p class="text-xs leading-relaxed opacity-80">
     AI features are <strong>off until you turn them on</strong>. When you enable one, this is sent to
-    <strong>OpenRouter</strong> (openrouter.ai) each time you save a page or run Resort:
+    your selected provider — currently <strong>{providerLabel}</strong> — each time you save a page
+    or run Resort:
   </p>
   <ul class="text-xs leading-relaxed opacity-80 list-disc pl-5 mt-2 space-y-0.5">
     <li>the page <strong>title</strong> and <strong>URL</strong></li>
@@ -31,17 +36,17 @@
     <li>your existing <strong>tag names</strong> and <strong>collection names</strong></li>
   </ul>
   <p class="text-xs leading-relaxed opacity-80 mt-2">
-    Requests go to OpenRouter under <strong>your own API key</strong>, billed to your account. Nothing
-    is sent to the developer, and no other server ever receives your data. OpenRouter's handling of it
-    is governed by
-    <a href="https://openrouter.ai/privacy" target="_blank" rel="noopener noreferrer" class="underline"
+    Requests go to {providerLabel} under <strong>your own API key</strong>, billed to your account.
+    Nothing is sent to the developer, and no other server ever receives your data. {providerLabel}'s
+    handling of it is governed by
+    <a href={privacyUrl} target="_blank" rel="noopener noreferrer" class="underline"
       >their privacy policy</a
     >.
   </p>
   <p class="text-xs leading-relaxed opacity-50 mt-2">
-    Your API key is encrypted at rest with a non-extractable AES-GCM key held by the browser, and is
-    sent only to openrouter.ai. It is excluded from exports. Your bookmarks themselves never leave
-    this device except as described above.
+    Each API key you save is encrypted at rest with a non-extractable AES-GCM key held by the
+    browser, and is sent only to the provider it belongs to. Keys are excluded from exports. Your
+    bookmarks themselves never leave this device except as described above.
   </p>
 
   <div class="mt-4 pt-3 border-t border-white/10">

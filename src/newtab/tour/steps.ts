@@ -59,7 +59,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'resort',
     target: 'resort',
     title: 'Resort with AI',
-    body: 'Optional, and off until you add your own OpenRouter key in Settings. It proposes a reorganisation, shows you the full before/after tree, and nothing moves until you approve — with one-tap undo afterwards.',
+    body: 'Optional, and off until you add your own OpenRouter or Anthropic key in Settings. It proposes a reorganisation, shows you the full before/after tree, and nothing moves until you approve — with one-tap undo afterwards.',
     placement: 'bottom',
   },
   {

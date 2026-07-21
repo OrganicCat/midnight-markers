@@ -1,8 +1,10 @@
 import { log } from '$lib/log';
 import { parseModelJSON } from './parse';
-import type { OpenRouterMessage } from './types';
+import type { ChatMessage } from './types';
 
 const BASE = 'https://openrouter.ai/api/v1';
+
+export const OPENROUTER_ENDPOINT = `${BASE}/chat/completions`;
 
 export class OpenRouterError extends Error {
   constructor(
@@ -18,12 +20,12 @@ export class OpenRouterError extends Error {
 export type ChatCompleteArgs = {
   apiKey: string;
   model: string;
-  messages: OpenRouterMessage[];
+  messages: ChatMessage[];
   signal?: AbortSignal;
 };
 
 export async function chatComplete(args: ChatCompleteArgs): Promise<unknown> {
-  const url = `${BASE}/chat/completions`;
+  const url = OPENROUTER_ENDPOINT;
   log.debug('chatComplete →', { model: args.model, messageCount: args.messages.length, url });
 
   const res = await fetch(url, {

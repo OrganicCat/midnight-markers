@@ -1,5 +1,5 @@
 import { log } from '$lib/log';
-import { chatComplete, OpenRouterError } from '$lib/ai/openrouter';
+import { getProvider, isProviderError, type ChatProvider } from '$lib/ai/provider';
 import type { SuggestFailReason } from '$lib/ai/suggest';
 import { buildSkeletonMessages, sampleBookmarks } from './skeleton';
 import { buildFilingMessages, parseFilings, parseSkeleton } from './filing';
@@ -27,6 +27,8 @@ export type ResortRunArgs = {
   bookmarks: BookmarkRef[];
   apiKey: string;
   model: string;
+  /** Defaults to OpenRouter so existing callers keep their behaviour. */
+  provider?: ChatProvider;
   signal: AbortSignal;
   onProgress?: (p: ResortProgress) => void;
 };
@@ -41,10 +43,16 @@ export function chunk<T>(items: T[], size: number): T[][] {
   return out;
 }
 
-function classifyError(e: unknown): SuggestFailReason {
-  if (e instanceof OpenRouterError) {
+function classifyError(e: unknown, providerLabel: string): SuggestFailReason {
+  if (isProviderError(e)) {
     if (e.status !== undefined) {
-      return { kind: 'http', status: e.status, body: e.body ?? '', message: e.message };
+      return {
+        kind: 'http',
+        status: e.status,
+        body: e.body ?? '',
+        message: e.message,
+        provider: providerLabel,
+      };
     }
     return { kind: 'parse', message: e.message, body: e.body ?? '' };
   }
@@ -58,7 +66,7 @@ export function resortReasonMessage(r: ResortFailReason): string {
     case 'no-key': return 'No API key set';
     case 'no-features': return 'All AI features disabled';
     case 'no-consent': return 'Data sharing not accepted yet — see Settings';
-    case 'http': return `OpenRouter HTTP ${r.status}: ${r.message}`;
+    case 'http': return `${r.provider} HTTP ${r.status}: ${r.message}`;
     case 'timeout': return 'Request timed out or was cancelled';
     case 'parse': return `Bad model output: ${r.message}`;
     case 'too-many':
@@ -85,6 +93,8 @@ async function pooled<T>(tasks: Array<() => Promise<T>>, limit: number): Promise
 }
 
 export async function runResort(args: ResortRunArgs): Promise<ResortRunResult> {
+  const provider = args.provider ?? getProvider('openrouter');
+
   if (args.bookmarks.length > MAX_BOOKMARKS) {
     return { ok: false, reason: { kind: 'too-many', count: args.bookmarks.length } };
   }
@@ -93,7 +103,7 @@ export async function runResort(args: ResortRunArgs): Promise<ResortRunResult> {
   args.onProgress?.({ phase: 'skeleton' });
   let skeleton: Skeleton;
   try {
-    const raw = await chatComplete({
+    const raw = await provider.chatComplete({
       apiKey: args.apiKey,
       model: args.model,
       messages: buildSkeletonMessages({
@@ -104,7 +114,7 @@ export async function runResort(args: ResortRunArgs): Promise<ResortRunResult> {
     });
     skeleton = parseSkeleton(raw);
   } catch (e) {
-    const reason = classifyError(e);
+    const reason = classifyError(e, provider.label);
     log.error('resort skeleton failed', reason);
     return { ok: false, reason };
   }
@@ -123,7 +133,7 @@ export async function runResort(args: ResortRunArgs): Promise<ResortRunResult> {
     const ids = new Set(batch.map((b) => b.id));
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const raw = await chatComplete({
+        const raw = await provider.chatComplete({
           apiKey: args.apiKey,
           model: args.model,
           messages,
@@ -132,7 +142,10 @@ export async function runResort(args: ResortRunArgs): Promise<ResortRunResult> {
         return parseFilings(raw, skeleton.folders, ids);
       } catch (e) {
         if (args.signal.aborted) throw e;
-        log.warn('resort filing batch failed', { attempt, reason: classifyError(e) });
+        log.warn('resort filing batch failed', {
+          attempt,
+          reason: classifyError(e, provider.label),
+        });
         if (attempt === 1) return [];
       }
     }
@@ -151,7 +164,7 @@ export async function runResort(args: ResortRunArgs): Promise<ResortRunResult> {
       CONCURRENCY,
     );
   } catch (e) {
-    const reason = classifyError(e);
+    const reason = classifyError(e, provider.label);
     log.error('resort filing aborted', reason);
     return { ok: false, reason };
   }

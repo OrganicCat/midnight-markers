@@ -21,19 +21,19 @@ const ALL_ON = { tags: true, title: true, collection: true };
 
 describe('canUseAI', () => {
   it('is false with no consent, even with a key and features on', () => {
-    expect(canUseAI(s({ aiKey: 'sk-or-v1-x', aiFeatures: ALL_ON, aiConsentAt: null }))).toBe(false);
+    expect(canUseAI(s({ openrouterKey: 'sk-or-v1-x', aiFeatures: ALL_ON, aiConsentAt: null }))).toBe(false);
   });
 
   it('is false with consent but no key', () => {
-    expect(canUseAI(s({ aiKey: null, aiFeatures: ALL_ON, aiConsentAt: 1 }))).toBe(false);
+    expect(canUseAI(s({ openrouterKey: null, aiFeatures: ALL_ON, aiConsentAt: 1 }))).toBe(false);
   });
 
   it('is false with consent and key but every feature off', () => {
-    expect(canUseAI(s({ aiKey: 'sk-or-v1-x', aiConsentAt: 1 }))).toBe(false);
+    expect(canUseAI(s({ openrouterKey: 'sk-or-v1-x', aiConsentAt: 1 }))).toBe(false);
   });
 
   it('is true only when all three hold', () => {
-    expect(canUseAI(s({ aiKey: 'sk-or-v1-x', aiFeatures: ALL_ON, aiConsentAt: 1 }))).toBe(true);
+    expect(canUseAI(s({ openrouterKey: 'sk-or-v1-x', aiFeatures: ALL_ON, aiConsentAt: 1 }))).toBe(true);
   });
 });
 
@@ -45,10 +45,10 @@ describe('whyBlocked', () => {
     expect(whyBlocked(s({ aiConsentAt: 1 }))).toMatch(/api key/i);
   });
   it('names the disabled features last', () => {
-    expect(whyBlocked(s({ aiConsentAt: 1, aiKey: 'sk-or-v1-x' }))).toMatch(/turned off/i);
+    expect(whyBlocked(s({ aiConsentAt: 1, openrouterKey: 'sk-or-v1-x' }))).toMatch(/turned off/i);
   });
   it('is null when the gate is open', () => {
-    expect(whyBlocked(s({ aiConsentAt: 1, aiKey: 'sk-or-v1-x', aiFeatures: ALL_ON }))).toBeNull();
+    expect(whyBlocked(s({ aiConsentAt: 1, openrouterKey: 'sk-or-v1-x', aiFeatures: ALL_ON }))).toBeNull();
   });
 });
 
@@ -65,7 +65,7 @@ describe('suggestForBookmarkResult consent gate', () => {
   it('makes NO network request when consent is absent', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    await settings.set({ aiKey: 'sk-or-v1-x', aiFeatures: ALL_ON });
+    await settings.set({ openrouterKey: 'sk-or-v1-x', aiFeatures: ALL_ON });
 
     const r = await suggestForBookmarkResult(input);
     expect(r.ok).toBe(false);
@@ -82,7 +82,7 @@ describe('suggestForBookmarkResult consent gate', () => {
       ),
     );
     vi.stubGlobal('fetch', fetchMock);
-    await settings.set({ aiKey: 'sk-or-v1-x', aiFeatures: ALL_ON, aiConsentAt: Date.now() });
+    await settings.set({ openrouterKey: 'sk-or-v1-x', aiFeatures: ALL_ON, aiConsentAt: Date.now() });
 
     const r = await suggestForBookmarkResult(input);
     expect(r.ok).toBe(true);
@@ -92,11 +92,60 @@ describe('suggestForBookmarkResult consent gate', () => {
   it('stops again after consent is withdrawn', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    await settings.set({ aiKey: 'sk-or-v1-x', aiFeatures: ALL_ON, aiConsentAt: Date.now() });
+    await settings.set({ openrouterKey: 'sk-or-v1-x', aiFeatures: ALL_ON, aiConsentAt: Date.now() });
     await settings.set({ aiConsentAt: null });
 
     const r = await suggestForBookmarkResult(input);
     expect(r.ok).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('consent gate is scoped to the active provider', () => {
+  it('is closed when only the INACTIVE provider has a key', () => {
+    const st = s({
+      aiProvider: 'anthropic',
+      openrouterKey: 'sk-or-v1-x',
+      anthropicKey: null,
+      aiFeatures: ALL_ON,
+      aiConsentAt: 1,
+    });
+    expect(canUseAI(st)).toBe(false);
+    expect(whyBlocked(st)).toBe('No Anthropic API key is set.');
+  });
+
+  it('opens once the active provider has a key', () => {
+    const st = s({
+      aiProvider: 'anthropic',
+      openrouterKey: null,
+      anthropicKey: 'sk-ant-x',
+      aiFeatures: ALL_ON,
+      aiConsentAt: 1,
+    });
+    expect(canUseAI(st)).toBe(true);
+    expect(whyBlocked(st)).toBeNull();
+  });
+
+  it('names OpenRouter when OpenRouter is active and unkeyed', () => {
+    const st = s({
+      aiProvider: 'openrouter',
+      openrouterKey: null,
+      anthropicKey: 'sk-ant-x',
+      aiFeatures: ALL_ON,
+      aiConsentAt: 1,
+    });
+    expect(canUseAI(st)).toBe(false);
+    expect(whyBlocked(st)).toBe('No OpenRouter API key is set.');
+  });
+
+  it('still requires consent even when both providers are keyed', () => {
+    const st = s({
+      aiProvider: 'anthropic',
+      openrouterKey: 'sk-or-v1-x',
+      anthropicKey: 'sk-ant-x',
+      aiFeatures: ALL_ON,
+      aiConsentAt: null,
+    });
+    expect(canUseAI(st)).toBe(false);
   });
 });

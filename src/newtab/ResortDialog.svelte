@@ -2,6 +2,7 @@
   import { settings } from '$lib/storage/settings';
   import { gatherScope } from '$lib/ai/resort/scope';
   import { runResort, resortReasonMessage } from '$lib/ai/resort/planner';
+  import { activeKey, activeModel, activeProvider } from '$lib/ai/provider';
   import { planToChanges } from '$lib/ai/resort/diff';
   import { buildPreviewTree } from '$lib/ai/resort/tree';
   import { allKeys, toggle } from '$lib/ai/resort/selection';
@@ -66,11 +67,11 @@
     const s = await settings.get();
     if (s.aiConsentAt === null) {
       errorMessage =
-        'Resort sends your page titles and URLs to OpenRouter. Accept the data-sharing disclosure in Settings to enable it.';
+        'Resort sends your page titles and URLs to your selected AI provider. Accept the data-sharing disclosure in Settings to enable it.';
       phase = 'error';
       return;
     }
-    if (!s.aiKey) {
+    if (!activeKey(s)) {
       errorMessage = 'No API key set — add one in Settings.';
       phase = 'error';
       return;
@@ -89,8 +90,9 @@
     const run = await runResort({
       folders: gathered.folders,
       bookmarks: gathered.bookmarks,
-      apiKey: s.aiKey,
-      model: s.aiModel,
+      apiKey: activeKey(s)!,
+      model: activeModel(s),
+      provider: activeProvider(s),
       signal: controller.signal,
       onProgress: (p) => {
         progressLabel =

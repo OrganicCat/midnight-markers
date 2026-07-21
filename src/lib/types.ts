@@ -40,14 +40,29 @@ export type AIFeatures = {
   collection: boolean;
 };
 
+/**
+ * Which vendor AI requests go to. One is active at a time and serves every AI
+ * feature; both providers' keys are retained across a switch so flipping back
+ * does not mean re-pasting.
+ */
+export type ProviderId = 'openrouter' | 'anthropic';
+
 export type Settings = {
-  aiKey: string | null;
-  aiModel: string;
+  aiProvider: ProviderId;
+  /**
+   * Per-provider key and model. Each key is sealed independently at rest — see
+   * $lib/storage/settings. Pre-v0.4 installs stored the OpenRouter pair as
+   * `aiKey`/`aiModel`; those are migrated on first read.
+   */
+  openrouterKey: string | null;
+  openrouterModel: string;
+  anthropicKey: string | null;
+  anthropicModel: string;
   aiFeatures: AIFeatures;
   /**
    * Timestamp at which the user affirmatively consented to sending page data
-   * to OpenRouter, or null if they never have. Nothing is transmitted while
-   * this is null — see canUseAI() in $lib/ai/consent.
+   * to the active model provider, or null if they never have. Nothing is
+   * transmitted while this is null — see canUseAI() in $lib/ai/consent.
    */
   aiConsentAt: number | null;
   defaultView: 'grid' | 'list';

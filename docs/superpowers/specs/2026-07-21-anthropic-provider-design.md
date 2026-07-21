@@ -178,7 +178,8 @@ Mirroring the existing OpenRouter coverage, plus the gaps this change opens:
   provider's key, not the other one's.
 - **`tests/unit/storage/settings.test.ts`** (extend) — the new fields default
   and round-trip; both keys persist independently.
-- **`tests/unit/storage/settingsSecurity.test.ts`** (extend) — neither key is
+- **`tests/unit/storage/settingsSecurity.test.ts`** (extend — this, not
+  `settings.test.ts`, is where the key-at-rest coverage lives) — neither key is
   ever written in plaintext; the `aiKeySealed` → `openrouterKeySealed` migration
   preserves the key and scrubs the old field; removing one provider's key leaves
   the other's sealed value intact.
@@ -198,9 +199,13 @@ Gate: `npm test`, `npm run check`, `npm run lint` all clean.
   page's visitors. That does not apply here — the key is the user's own, stored
   encrypted in their own browser profile — but it is worth stating plainly in
   PRIVACY.md rather than quietly setting the flag.
-- **SDK bundle size** in an extension. To be measured after the change; if the
-  cost is unreasonable, the fallback is the raw-fetch implementation (one POST),
-  which is a contained swap behind `ChatProvider`.
+- **SDK bundle size** in an extension. **Measured:** imported at module scope,
+  the SDK added +162 kB raw / +43 kB gzipped to the shared startup chunk that
+  the popup, new tab, and settings pages all load — a cost paid by every user
+  including the OpenRouter-only majority. Resolved by loading the SDK through a
+  dynamic `import()` inside `anthropic.ts`, which moves it to its own lazy chunk
+  fetched only when an Anthropic request actually fires. The shared chunk now
+  grows by +5 kB raw / +1.6 kB gzipped. `client()` is async as a result.
 
 ## Open question (does not block implementation)
 
@@ -212,3 +217,34 @@ where the disclosure sits. Implementing the non-re-prompting behaviour for now
 (consent persists across a switch, disclosure text updates to name the active
 provider) and flagging it for review, since the stricter behaviour is easy to
 add later and the looser one cannot be retroactively un-shipped.
+
+## Implementation notes (post-hoc)
+
+Three things the design did not anticipate, recorded because each was a real
+defect the tests caught rather than a stylistic choice:
+
+1. **The SDK's abort error is not name-detectable.** `APIUserAbortError` sets
+   `name` to plain `"Error"`; only its constructor carries the name. Detecting
+   an abort by `e.name === 'AbortError'` therefore misclassified every timeout
+   as `unknown`, and the user would have seen a meaningless error instead of
+   "Request timed out". `isAbort()` now keys on the `AbortSignal` itself, with
+   the name and constructor-name checks as fallbacks. `instanceof` is
+   deliberately not used — the class sits behind the dynamic import, and
+   importing it eagerly would undo the bundle split. Pinned by a test in both
+   `anthropic.test.ts` and `suggest.test.ts`.
+
+2. **`ModelPicker`'s mode effect must key on the preset list, not on `value`.**
+   Reacting to `value` snapped the picker back to the dropdown the instant the
+   user clicked through to custom entry, because at that moment `value` is still
+   a preset. Regression test added.
+
+3. **happy-dom cannot remove a bare `<select>`.** `HTMLSelectElement.remove()`
+   is the remove-option-by-index API and shadows `ChildNode.remove()`, so
+   Svelte's teardown threw. The select is wrapped in a `div` so the container is
+   detached instead. This is a test-environment workaround with no production
+   cost, and it is commented as such at the call site.
+
+**Pre-existing, untouched:** `npm run lint` fails on this repo independently of
+this change — the ESLint 9 flat-config migration has not been done, and it fails
+identically on `main`. Not fixed here to keep the diff scoped; worth its own
+change.

@@ -9,7 +9,8 @@ exactly what data it handles, where that data goes, and what it never does.
 
 Your bookmarks stay on your own device. The only time anything leaves it is
 when *you* turn on the optional AI features, and then only the specific fields
-listed below, sent directly to OpenRouter using *your own* API key. The
+listed below, sent directly to your chosen AI provider using *your own* API
+key. The
 developer of midnight-markers operates no servers and never receives your data.
 
 ## Who we are
@@ -29,7 +30,7 @@ is never transmitted anywhere by this extension:
   status.
 - Collections (folders) and tags you create.
 - Your preferences: theme scale, default view, chosen AI model.
-- Your OpenRouter API key, if you choose to provide one.
+- Your OpenRouter and/or Anthropic API key, if you choose to provide one.
 
 If you use the "Import browser bookmarks" feature, the extension reads your
 browser's existing bookmark tree to copy it into its own local library. That
@@ -42,27 +43,39 @@ switched off by default. Enabling them requires you to read an in-product
 disclosure and take an affirmative action to accept it. You may withdraw that
 consent at any time in Settings, which immediately disables all AI features.
 
-When AI features are enabled, the following is sent to **OpenRouter**
-(`https://openrouter.ai`) each time you save a page or run the Resort feature:
+When AI features are enabled, the following is sent to **the AI provider you
+have selected** each time you save a page or run the Resort feature:
 
 - the page **title** and **URL**
 - the page's **meta description** and up to **500 characters** of page text
 - the **names of your existing tags and collections**, so suggestions can reuse
   them rather than inventing duplicates
 
-This is sent directly from your browser to OpenRouter, authenticated with the
-API key you supplied, and billed to your own OpenRouter account. It does not
-pass through any server operated by the developer. OpenRouter's handling of
-this data is governed by their own privacy policy:
-<https://openrouter.ai/privacy>
+You choose the provider in Settings. Exactly one is active at a time, and the
+in-product disclosure names the active one. The two supported providers are:
 
-No other destination ever receives your data. The extension declares a host
-permission for `https://openrouter.ai/*` and no other host, so the browser
-itself blocks requests elsewhere.
+| Provider | Endpoint | Privacy policy |
+|---|---|---|
+| OpenRouter | `https://openrouter.ai` | <https://openrouter.ai/privacy> |
+| Anthropic | `https://api.anthropic.com` | <https://www.anthropic.com/legal/privacy> |
+
+This is sent directly from your browser to that provider, authenticated with
+the API key you supplied, and billed to your own account with them. It does not
+pass through any server operated by the developer. Their handling of this data
+is governed by their own privacy policy, linked above.
+
+No other destination ever receives your data. The extension declares host
+permissions for `https://openrouter.ai/*` and `https://api.anthropic.com/*` and
+no other host, so the browser itself blocks requests elsewhere. Data is only
+ever sent to the provider you have selected — selecting one does not send
+anything to the other.
 
 ## How your API key is protected
 
-Your OpenRouter API key is encrypted at rest using AES-256-GCM. The encryption
+Each API key you save is encrypted at rest using AES-256-GCM, in its own
+separate envelope. Keys for both providers may be stored at once so that
+switching between them does not require re-entering a key; only the active
+provider's key is ever transmitted. The encryption
 key is generated inside your browser as a **non-extractable** WebCrypto key:
 the raw key material is held by the browser and cannot be read back out by
 JavaScript, including by this extension's own code, by browser developer tools,
@@ -76,8 +89,9 @@ plainly rather than implying stronger protection than exists.
 
 The API key is additionally:
 
-- transmitted only over HTTPS, only to openrouter.ai, only in an
-  `Authorization` header;
+- transmitted only over HTTPS, and only to the provider it belongs to — the
+  OpenRouter key only to openrouter.ai (in an `Authorization` header), the
+  Anthropic key only to api.anthropic.com (in an `x-api-key` header);
 - never written to logs or diagnostic output;
 - excluded from the extension's export/backup file, so sharing a backup cannot
   leak it;
@@ -91,11 +105,10 @@ The API key is additionally:
 - We do not read pages in the background. Page content is read only from the
   tab you are actively on, at the moment you click the extension's toolbar
   button.
-- We do not transfer user data to third parties except OpenRouter, as described
-  above, and only when you have enabled AI features.
-- We do not use your data to train any model. (Whether OpenRouter or the model
-  provider you select does so is governed by their policies and your OpenRouter
-  account settings.)
+- We do not transfer user data to third parties except the AI provider you have
+  selected, as described above, and only when you have enabled AI features.
+- We do not use your data to train any model. (Whether your selected provider
+  does so is governed by their policies and your account settings with them.)
 
 ## Limited Use disclosure
 
@@ -119,3 +132,14 @@ the new behaviour takes effect.
 - Export: download your entire library as JSON at any time.
 - Deletion: uninstalling the extension removes all locally stored data. You can
   also delete the API key alone from Settings.
+
+## A note on direct browser access
+
+Requests to Anthropic are made from the extension itself using the Anthropic
+SDK's `dangerouslyAllowBrowser` option. That option carries a blunt name
+because the usual reason to send API requests from a browser is a public web
+page, where the key would be exposed to every visitor. That is not the case
+here: the key is your own, you entered it yourself, it is sealed in your own
+browser profile, and it is sent only to Anthropic. A browser extension has no
+server to proxy through, which is the same reason the OpenRouter path has
+always called the API directly too.

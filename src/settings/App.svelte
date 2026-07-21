@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { settings } from '$lib/storage/settings';
-  import { validateKey } from '$lib/ai/openrouter';
-  import type { Settings } from '$lib/types';
+  import { getProvider } from '$lib/ai/provider';
+  import type { ProviderId, Settings } from '$lib/types';
   import KeyForm from './KeyForm.svelte';
+  import ProviderPicker from './ProviderPicker.svelte';
   import ModelPicker from './ModelPicker.svelte';
   import PrivacyNote from './PrivacyNote.svelte';
   import DataSection from './DataSection.svelte';
@@ -12,33 +13,53 @@
 
   let s = $state<Settings | null>(null);
   let modelDraft = $state<string>('anthropic/claude-haiku-4.5');
+  let providerDraft = $state<ProviderId>('openrouter');
   let scaleDraft = $state<number>(1);
 
+  const provider = $derived(getProvider(providerDraft));
+  const currentKey = $derived(
+    s === null ? null : providerDraft === 'anthropic' ? s.anthropicKey : s.openrouterKey,
+  );
+
   async function refresh() {
-    s = await settings.get();
-    modelDraft = s.aiModel;
-    scaleDraft = s.uiScale;
+    const next = await settings.get();
+    providerDraft = next.aiProvider;
+    modelDraft = next.aiProvider === 'anthropic' ? next.anthropicModel : next.openrouterModel;
+    scaleDraft = next.uiScale;
+    s = next;
+  }
+
+  /** The key/model field names for whichever provider is selected. */
+  function fieldsFor(id: ProviderId): { key: 'openrouterKey' | 'anthropicKey'; model: 'openrouterModel' | 'anthropicModel' } {
+    return id === 'anthropic'
+      ? { key: 'anthropicKey', model: 'anthropicModel' }
+      : { key: 'openrouterKey', model: 'openrouterModel' };
   }
 
   onMount(refresh);
 
   async function saveKey(key: string) {
-    await settings.set({ aiKey: key });
+    await settings.set({ [fieldsFor(providerDraft).key]: key });
     await refresh();
   }
   async function removeKey() {
-    if (!confirm('Remove the saved API key? AI suggestions will stop until you add one again.')) return;
-    await settings.set({ aiKey: null });
+    if (
+      !confirm(
+        `Remove the saved ${provider.label} API key? AI suggestions will stop until you add one again.`,
+      )
+    )
+      return;
+    await settings.set({ [fieldsFor(providerDraft).key]: null });
     await refresh();
   }
   async function testConnection(): Promise<'idle' | 'testing' | 'ok' | 'fail'> {
-    if (!s?.aiKey) return 'fail';
-    const ok = await validateKey(s.aiKey);
+    if (!currentKey) return 'fail';
+    const ok = await provider.validateKey(currentKey);
     return ok ? 'ok' : 'fail';
   }
 
   async function setModel(m: string) {
-    await settings.set({ aiModel: m });
+    await settings.set({ [fieldsFor(providerDraft).model]: m });
     await refresh();
   }
 
@@ -66,12 +87,24 @@
     await refresh();
   }
 
-  // Sync ModelPicker's bindable value back to settings when it changes.
-  // We compare against s.aiModel (the persisted truth) to avoid writing on
-  // refresh-driven sync.
+  // Sync ProviderPicker's bindable value back to settings. Switching provider
+  // only changes which pair is active — neither key is touched.
   $effect(() => {
     if (!s) return;
-    if (modelDraft && modelDraft !== s.aiModel) {
+    if (providerDraft !== s.aiProvider) {
+      void settings.set({ aiProvider: providerDraft }).then(refresh);
+    }
+  });
+
+  // Sync ModelPicker's bindable value back to settings when it changes.
+  // We compare against the persisted truth for the *active* provider to avoid
+  // writing on refresh-driven sync, and to avoid writing an OpenRouter model
+  // id into the Anthropic slot during a provider switch.
+  $effect(() => {
+    if (!s) return;
+    if (providerDraft !== s.aiProvider) return;
+    const persisted = providerDraft === 'anthropic' ? s.anthropicModel : s.openrouterModel;
+    if (modelDraft && modelDraft !== persisted) {
       void setModel(modelDraft);
     }
   });
@@ -92,18 +125,37 @@
     </header>
 
     {#if s}
+      <ProviderPicker
+        bind:value={providerDraft}
+        hasKey={{ openrouter: s.openrouterKey !== null, anthropic: s.anthropicKey !== null }}
+      />
+
       <KeyForm
-        currentKey={s.aiKey}
+        {currentKey}
+        providerLabel={provider.label}
+        keysUrl={provider.keysUrl}
+        keyPlaceholder={provider.keyPlaceholder}
         onSave={saveKey}
         onRemove={removeKey}
         onTest={testConnection}
       />
 
-      <ModelPicker bind:value={modelDraft} />
+      <ModelPicker
+        bind:value={modelDraft}
+        presets={provider.presetModels}
+        providerLabel={provider.label}
+        modelsUrl={provider.modelsUrl}
+      />
 
       <ScalePicker bind:value={scaleDraft} />
 
-      <PrivacyNote consentAt={s.aiConsentAt} onAccept={acceptConsent} onRevoke={revokeConsent} />
+      <PrivacyNote
+        consentAt={s.aiConsentAt}
+        providerLabel={provider.label}
+        privacyUrl={provider.privacyUrl}
+        onAccept={acceptConsent}
+        onRevoke={revokeConsent}
+      />
 
       <div class="rounded-xl border border-white/10 p-5 bg-white/[0.02] {s.aiConsentAt === null ? 'opacity-50' : ''}">
         <div class="flex items-baseline gap-2 mb-3">

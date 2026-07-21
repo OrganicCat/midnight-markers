@@ -3,11 +3,17 @@
 
   let {
     currentKey,
+    providerLabel,
+    keysUrl,
+    keyPlaceholder,
     onSave,
     onRemove,
     onTest,
   }: {
     currentKey: string | null;
+    providerLabel: string;
+    keysUrl: string;
+    keyPlaceholder: string;
     onSave: (key: string) => void | Promise<void>;
     onRemove: () => void | Promise<void>;
     onTest: () => Promise<TestStatus>;
@@ -16,6 +22,15 @@
   let editing = $state(false);
   let draft = $state('');
   let status = $state<TestStatus>('idle');
+
+  // Switching provider swaps which key this form is bound to, so a stale
+  // "✓ OK" from the previous provider must not linger over the new one.
+  $effect(() => {
+    void providerLabel;
+    status = 'idle';
+    editing = false;
+    draft = '';
+  });
 
   function maskKey(k: string): string {
     if (k.length <= 12) return k;
@@ -38,7 +53,7 @@
 </script>
 
 <div class="rounded-xl border border-white/10 p-5 bg-white/[0.02]">
-  <div class="text-[0.625rem] uppercase tracking-wider opacity-50 mb-2">OpenRouter API key</div>
+  <div class="text-[0.625rem] uppercase tracking-wider opacity-50 mb-2">{providerLabel} API key</div>
 
   {#if !currentKey && !editing}
     <p class="text-sm opacity-70">No key set. Add one to enable AI suggestions.</p>
@@ -48,7 +63,7 @@
       class="w-full bg-black/40 rounded px-3 py-2 text-xs font-mono"
       value={maskKey(currentKey ?? '')}
       readonly
-      aria-label="OpenRouter API key (masked)"
+      aria-label="{providerLabel} API key (masked)"
     />
     <div class="flex gap-2 mt-3">
       <button class="px-3 py-1.5 rounded bg-white/5 text-xs" onclick={() => (editing = true)}>Change</button>
@@ -62,13 +77,13 @@
       type="password"
       class="w-full bg-black/40 rounded px-3 py-2 text-xs font-mono"
       bind:value={draft}
-      placeholder="sk-or-v1-..."
-      aria-label="OpenRouter API key"
+      placeholder={keyPlaceholder}
+      aria-label="{providerLabel} API key"
     />
     <div class="flex gap-2 mt-3">
       <button class="px-3 py-1.5 rounded bg-accent-violet/20 text-xs" onclick={save}>Save</button>
       <button class="px-3 py-1.5 rounded bg-white/5 text-xs" onclick={() => { editing = false; draft = ''; }}>Cancel</button>
     </div>
-    <p class="mt-3 text-xs opacity-50">Get a key at <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer noopener" class="underline">openrouter.ai/keys</a>.</p>
+    <p class="mt-3 text-xs opacity-50">Get a key from <a href={keysUrl} target="_blank" rel="noreferrer noopener" class="underline">{providerLabel}</a>.</p>
   {/if}
 </div>

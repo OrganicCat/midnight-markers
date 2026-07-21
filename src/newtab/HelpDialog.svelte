@@ -62,7 +62,7 @@
       <section>
         <h3 class="text-[0.625rem] uppercase tracking-wider opacity-50 mb-1.5">AI (optional)</h3>
         <p class="opacity-75">
-          Everything AI is off until you add your own OpenRouter key in Settings and accept the
+          Everything AI is off until you add your own OpenRouter or Anthropic key in Settings and accept the
           disclosure. Nothing leaves this machine before that. Once on, the popup can suggest
           titles, tags and a collection, and ✦ Resort proposes a reorganisation you approve — or
           undo — before anything moves.

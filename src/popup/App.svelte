@@ -8,6 +8,7 @@
   import { collections as colStore } from '$lib/storage/collections';
   import { settings } from '$lib/storage/settings';
   import { suggestForBookmarkResult } from '$lib/ai/suggest';
+  import { activeKey, activeModel } from '$lib/ai/provider';
   import { log } from '$lib/log';
   import type { Bookmark, Collection, Tag } from '$lib/types';
   import type { Suggestion } from '$lib/ai/types';
@@ -50,11 +51,11 @@
 
   async function runAI(b: Bookmark): Promise<void> {
     const s = await settings.get();
-    if (!s.aiKey) {
+    if (!activeKey(s)) {
       aiState = 'disabled';
       return;
     }
-    aiModel = s.aiModel;
+    aiModel = activeModel(s);
     aiState = 'thinking';
     const t0 = performance.now();
     const colsWithPaths = await colStore.listWithPaths();
