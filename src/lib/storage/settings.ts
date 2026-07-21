@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultView: 'grid',
   defaultCollectionId: null,
   uiScale: 1,
+  tourSeenAt: null,
 };
 
 /**
@@ -56,21 +57,45 @@ export const settings = {
     return { ...DEFAULT_SETTINGS, ...rest, aiKey };
   },
 
-  async set(patch: Partial<Settings>): Promise<Settings> {
-    const db = await getDb();
-    const current = await this.get();
-    const next: Settings = { ...current, ...patch };
+  /**
+   * Merge `patch` into the stored settings.
+   *
+   * Writes are serialized through {@link writeQueue}. Every set() is a
+   * read-modify-write with several awaits in the middle, so two callers that
+   * overlap — and on the new tab page they do, the view preference and the
+   * tour flag are both written during first paint — would each read the same
+   * "current" and the second put() would silently drop the first one's field.
+   */
+  set(patch: Partial<Settings>): Promise<Settings> {
+    return enqueue(async () => {
+      const db = await getDb();
+      const current = await this.get();
+      const next: Settings = { ...current, ...patch };
 
-    const { aiKey, ...rest } = next;
-    const toStore: StoredSettings = {
-      ...rest,
-      aiKeySealed: aiKey ? await seal(aiKey) : null,
-    };
-    // Guarantee the legacy plaintext field cannot survive a write.
-    delete toStore.aiKey;
+      const { aiKey, ...rest } = next;
+      const toStore: StoredSettings = {
+        ...rest,
+        aiKeySealed: aiKey ? await seal(aiKey) : null,
+      };
+      // Guarantee the legacy plaintext field cannot survive a write.
+      delete toStore.aiKey;
 
-    await db.put('settings', toStore as unknown as Settings, KEY);
-    emit({ type: 'settings:changed' });
-    return next;
+      await db.put('settings', toStore as unknown as Settings, KEY);
+      emit({ type: 'settings:changed' });
+      return next;
+    });
   },
 };
+
+/**
+ * Tail of the write chain. Each enqueued job starts only after the previous
+ * one has settled, so read-modify-write cycles can't interleave. A rejected
+ * job doesn't poison the chain for the jobs behind it.
+ */
+let writeQueue: Promise<unknown> = Promise.resolve();
+
+function enqueue<T>(job: () => Promise<T>): Promise<T> {
+  const run = writeQueue.then(job, job);
+  writeQueue = run.catch(() => {});
+  return run;
+}

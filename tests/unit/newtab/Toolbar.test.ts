@@ -11,9 +11,19 @@ function props(overrides: Record<string, unknown> = {}) {
     onNewCollection: () => {},
     onResort: () => {},
     canResort: true,
+    onHelp: () => {},
     ...overrides,
   };
 }
+
+describe('Toolbar help button', () => {
+  it('calls onHelp when the ? button is clicked', async () => {
+    const onHelp = vi.fn();
+    render(Toolbar, { props: props({ onHelp }) });
+    await fireEvent.click(screen.getByRole('button', { name: /help/i }));
+    expect(onHelp).toHaveBeenCalled();
+  });
+});
 
 describe('Toolbar resort button', () => {
   it('renders a Resort button', () => {

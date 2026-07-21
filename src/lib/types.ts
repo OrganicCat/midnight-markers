@@ -53,6 +53,14 @@ export type Settings = {
   defaultView: 'grid' | 'list';
   defaultCollectionId: string | null;
   uiScale: number; // multiplier on root font-size; 1.0 = 100%, range 0.9–1.5
+  /**
+   * Timestamp at which the guided tour was last *shown*. Null means the user
+   * has never seen it, which is the one and only condition for auto-running it
+   * on the new tab page. Written when the tour opens rather than when it
+   * closes: closing the tab a moment after skipping would otherwise lose the
+   * write and the tour would ambush them again on the next new tab.
+   */
+  tourSeenAt: number | null;
 };
 
 export type SmartFilter = 'recent' | 'unread' | 'starred' | 'untagged' | 'broken';

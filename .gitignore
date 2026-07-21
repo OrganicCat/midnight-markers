@@ -8,4 +8,4 @@ dist/
 .vite/
 test-results/
 playwright-report/
-.playwright-user/
+.playwright-user*/

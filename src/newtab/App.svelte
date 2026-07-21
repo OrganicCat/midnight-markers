@@ -5,6 +5,9 @@
   import BookmarkGrid from './BookmarkGrid.svelte';
   import BookmarkList from './BookmarkList.svelte';
   import ResortDialog from './ResortDialog.svelte';
+  import HelpDialog from './HelpDialog.svelte';
+  import Spotlight from './tour/Spotlight.svelte';
+  import { createTour } from './tour/tour.svelte';
   import { snapshots } from '$lib/storage/snapshot';
   import type { ResortScope } from '$lib/ai/resort/types';
   import type { ApplyResult } from '$lib/ai/resort/apply';
@@ -38,6 +41,7 @@
     allBookmarks = bmList;
     view = s.defaultView;
     index = buildIndex(allBookmarks);
+    if (s.tourSeenAt === null) maybeAutoStartTour();
   }
 
   $effect(() => {
@@ -86,6 +90,9 @@
   });
 
   function handleKey(e: KeyboardEvent) {
+    // While the tour or the help panel is up they own the keyboard.
+    if (tour.active || helpOpen) return;
+
     // Don't intercept when an input/textarea has focus.
     const t = e.target as HTMLElement;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) {
@@ -97,14 +104,25 @@
     }
 
     switch (e.key) {
+      case '?':
+        e.preventDefault();
+        helpOpen = true;
+        break;
       case '/': // common search-focus shortcut
+        e.preventDefault();
+        (document.querySelector('input[placeholder^="Search"]') as HTMLInputElement | null)?.focus();
+        break;
       case 'k':
-        if ((e.metaKey || e.ctrlKey) || e.key === '/') {
+      case 'K':
+        if (e.metaKey || e.ctrlKey) {
           e.preventDefault();
           (document.querySelector('input[placeholder^="Search"]') as HTMLInputElement | null)?.focus();
+        } else if (items.length > 0) {
+          selectedIndex = Math.max(0, selectedIndex - 1);
         }
         break;
       case 'j':
+      case 'J':
         if (items.length > 0) selectedIndex = Math.min(items.length - 1, selectedIndex + 1);
         break;
       case 'ArrowDown':
@@ -222,6 +240,40 @@
     await loadData();
   }
 
+  // --- Help & guided tour ---------------------------------------------------
+
+  const tour = createTour();
+  let helpOpen = $state(false);
+  /** Guards against a second storage event re-triggering the first-run tour. */
+  let autoStartAttempted = false;
+
+  /**
+   * Record that the tour has been shown. Called as it opens, not as it closes,
+   * so that reloading or closing the tab mid-tour can't lose the write and
+   * hand the user the same walkthrough again tomorrow.
+   */
+  function markTourSeen() {
+    void settings.set({ tourSeenAt: Date.now() });
+  }
+
+  function startTour() {
+    helpOpen = false;
+    markTourSeen();
+    // Let the help panel unmount first so its backdrop isn't caught in the cutout.
+    queueMicrotask(() => void tour.start());
+  }
+
+  /**
+   * First run only: show the tour once the page has actually painted, so the
+   * steps measure real element positions rather than an empty skeleton.
+   */
+  function maybeAutoStartTour() {
+    if (autoStartAttempted) return;
+    autoStartAttempted = true;
+    markTourSeen();
+    requestAnimationFrame(() => void tour.start());
+  }
+
   function onResortApplied(result: ApplyResult) {
     resortScope = null;
     const total = result.moved + result.created + result.renamed + result.merged + result.deleted;
@@ -235,12 +287,15 @@
 <div class="min-h-screen flex" style="background: linear-gradient(180deg, #0b0c14 0%, #14172a 100%);">
   <Sidebar {collections} {tags} {selection} onSelect={(s) => (selection = s)} onMoveBookmarkToCollection={moveBookmarkToCollection} onMoveCollection={moveCollection} onResortCollection={resortCollection} />
   <main class="flex-1 px-8 py-6 overflow-auto">
-    <Toolbar bind:search bind:view title={titleFor(selection)} count={items.length} onNewCollection={newCollection} onResort={openResort} {canResort} />
-    {#if view === 'grid'}
-      <BookmarkGrid {items} {selectedIndex} onOpen={openBookmark} onDelete={deleteBookmark} />
-    {:else}
-      <BookmarkList {items} {collections} {tags} {selectedIndex} onOpen={openBookmark} onDelete={deleteBookmark} />
-    {/if}
+    <Toolbar bind:search bind:view title={titleFor(selection)} count={items.length} onNewCollection={newCollection} onResort={openResort} {canResort} onHelp={() => (helpOpen = true)} />
+    <!-- The tour hook only exists when there is something to point at. -->
+    <div data-tour={items.length > 0 ? 'results' : null}>
+      {#if view === 'grid'}
+        <BookmarkGrid {items} {selectedIndex} onOpen={openBookmark} onDelete={deleteBookmark} />
+      {:else}
+        <BookmarkList {items} {collections} {tags} {selectedIndex} onOpen={openBookmark} onDelete={deleteBookmark} />
+      {/if}
+    </div>
   </main>
 </div>
 
@@ -259,3 +314,9 @@
     <button class="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20" onclick={undoResort}>Undo</button>
   </div>
 {/if}
+
+{#if helpOpen}
+  <HelpDialog onClose={() => (helpOpen = false)} onStartTour={startTour} />
+{/if}
+
+<Spotlight {tour} />

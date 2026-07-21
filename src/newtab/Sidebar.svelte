@@ -129,7 +129,7 @@
   });
 </script>
 
-<aside class="w-[12.5rem] shrink-0 px-3 py-4 border-r border-white/5 text-sm">
+<aside data-tour="sidebar" class="w-[12.5rem] shrink-0 px-3 py-4 border-r border-white/5 text-sm">
   <div class="font-semibold tracking-tight mb-4">⏾ midnight</div>
 
   <div class="text-[0.625rem] uppercase tracking-wider opacity-50 px-2 mt-3 mb-1">Library</div>

@@ -40,4 +40,25 @@ describe('settings store', () => {
     await settings.set({ uiScale: 1.3 });
     expect((await settings.get()).uiScale).toBe(1.3);
   });
+
+  it('tourSeenAt defaults to null and round-trips', async () => {
+    expect((await settings.get()).tourSeenAt).toBe(null);
+    await settings.set({ tourSeenAt: 1234 });
+    expect((await settings.get()).tourSeenAt).toBe(1234);
+  });
+
+  it('concurrent partial writes do not clobber each other', async () => {
+    // Both of these are fired without awaiting, exactly as the new tab page
+    // does on first paint. Serialized correctly, both fields survive; with a
+    // naive read-modify-write the later put() drops the earlier field.
+    await Promise.all([
+      settings.set({ tourSeenAt: 999 }),
+      settings.set({ defaultView: 'list' }),
+      settings.set({ uiScale: 1.2 }),
+    ]);
+    const s = await settings.get();
+    expect(s.tourSeenAt).toBe(999);
+    expect(s.defaultView).toBe('list');
+    expect(s.uiScale).toBe(1.2);
+  });
 });

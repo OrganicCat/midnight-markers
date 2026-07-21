@@ -11,7 +11,8 @@ A dark, polished bookmark extension for Brave & Chrome — Raindrop-flavored, mi
 - **JSON export/import** for portable backups.
 - **Broken-link checker** runs daily in the background.
 - **Drag-and-drop** bookmarks into collections.
-- **Keyboard-first**: ⌘K search · J/K or ↑/↓ navigate · ↵ open · S star · ⌫ delete · 1/2 grid/list.
+- **Keyboard-first**: ⌘K search · J/K or ↑/↓ navigate · ↵ open · S star · ⌫ delete · 1/2 grid/list · ? help.
+- **Guided tour** on first run, replayable any time from the ? button in the toolbar.
 - **Local-only** storage (IndexedDB). No account, no cloud, no telemetry.
 
 ## Dev

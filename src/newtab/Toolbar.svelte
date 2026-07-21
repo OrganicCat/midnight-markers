@@ -7,6 +7,7 @@
     onNewCollection,
     onResort,
     canResort,
+    onHelp,
   }: {
     search: string;
     title: string;
@@ -15,6 +16,7 @@
     onNewCollection: () => void;
     onResort: () => void;
     canResort: boolean;
+    onHelp: () => void;
   } = $props();
 </script>
 
@@ -22,9 +24,10 @@
   <input
     bind:value={search}
     placeholder="Search bookmarks..."
+    data-tour="search"
     class="flex-1 bg-white/5 border border-white/5 rounded-lg px-3 py-2 text-sm outline-none focus:border-accent-violet/50"
   />
-  <div class="flex items-center bg-white/5 rounded-lg p-0.5">
+  <div class="flex items-center bg-white/5 rounded-lg p-0.5" data-tour="view-toggle">
     <button
       class="px-2.5 py-1.5 rounded {view === 'grid' ? 'bg-white/10 text-white' : 'opacity-50 hover:opacity-100'}"
       onclick={() => (view = 'grid')}
@@ -41,10 +44,18 @@
   <button
     onclick={onResort}
     disabled={!canResort}
+    data-tour="resort"
     title={canResort ? 'Reorganize with AI' : 'Pick All bookmarks or a collection to resort'}
     class="text-xs px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-40 disabled:hover:bg-white/5"
   >✦ Resort</button>
-  <button onclick={onNewCollection} class="text-xs px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10">+ Collection</button>
+  <button onclick={onNewCollection} data-tour="new-collection" class="text-xs px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10">+ Collection</button>
+  <button
+    onclick={onHelp}
+    data-tour="help"
+    aria-label="Help"
+    title="Help & guided tour (?)"
+    class="text-xs w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10"
+  >?</button>
 </div>
 <div class="mb-4">
   <h1 class="text-2xl font-semibold tracking-tight">
