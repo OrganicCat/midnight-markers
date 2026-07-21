@@ -104,6 +104,8 @@
 
   // Flatten the collection forest into a depth-first list with depth annotations.
   let collectionTree = $derived.by<FlatNode[]>(() => {
+    // Local to this derivation, rebuilt each run, never reactive state.
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const byParent = new Map<string | null, Collection[]>();
     for (const c of collections) {
       const list = byParent.get(c.parentId) ?? [];
@@ -113,6 +115,8 @@
     for (const list of byParent.values()) list.sort((a, b) => a.sortOrder - b.sortOrder);
 
     const out: FlatNode[] = [];
+    // Cycle guard local to this derivation; never read outside it.
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const seen = new Set<string>();
     const walk = (parentId: string | null, depth: number): void => {
       const children = byParent.get(parentId);

@@ -1,17 +1,14 @@
 <script lang="ts">
   import type { Suggestion } from '$lib/ai/types';
-  import type { Collection } from '$lib/types';
 
   let {
     suggestion,
-    collections,
     appliedTagNames = new Set(),
     appliedCollectionId = null,
     onAcceptTitle,
     onAcceptTag,
   }: {
     suggestion: Suggestion;
-    collections: Collection[];
     appliedTagNames?: Set<string>;
     appliedCollectionId?: string | null;
     onAcceptTitle: (title: string) => void;
@@ -20,10 +17,6 @@
 
   let titleDismissed = $state(false);
   let tagsManuallyAccepted = $state<Set<string>>(new Set());
-
-  function colName(id: string): string {
-    return collections.find((c) => c.id === id)?.name ?? '?';
-  }
 
   function acceptTitle() {
     if (suggestion.suggestedTitle) {

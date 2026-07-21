@@ -190,7 +190,6 @@
       {#if aiState === 'ready' && suggestion}
         <AISuggestions
           {suggestion}
-          collections={allCollections}
           appliedTagNames={appliedTagNames}
           appliedCollectionId={appliedCollectionId}
           onAcceptTitle={acceptTitle}

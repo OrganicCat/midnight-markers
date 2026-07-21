@@ -164,7 +164,7 @@
             <span class="text-[0.625rem] opacity-60">— accept the disclosure above to enable</span>
           {/if}
         </div>
-        {#each [['tags','Suggest tags','Prefer existing · max 2 new per save'],['title','Suggest title','Show a friendlier title; original always recoverable'],['collection','Suggest collection','Pick from existing collections only']] as [key, label, desc]}
+        {#each [['tags','Suggest tags','Prefer existing · max 2 new per save'],['title','Suggest title','Show a friendlier title; original always recoverable'],['collection','Suggest collection','Pick from existing collections only']] as [key, label, desc] (key)}
           <label class="flex items-start justify-between gap-4 py-2">
             <div>
               <div class="text-sm">{label}</div>
