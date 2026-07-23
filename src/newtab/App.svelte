@@ -17,6 +17,7 @@
   import { settings } from '$lib/storage/settings';
   import { storageEvents } from '$lib/storage/events';
   import { buildIndex, searchIds, type SearchIndex } from '$lib/search/index';
+  import { buildListRows, visibleBookmarks } from './listTree';
   import type { Bookmark, Collection, Tag } from '$lib/types';
 
   let selection = $state<Selection>({ kind: 'all' });
@@ -28,6 +29,64 @@
   let index = $state<SearchIndex | null>(null);
   let items = $state<Bookmark[]>([]);
   let selectedIndex = $state(0);
+
+  // --- List view tree -------------------------------------------------------
+
+  /** Storage key for which collections the user has folded shut in list view. */
+  const COLLAPSED_KEY = 'mm:list-collapsed';
+
+  /**
+   * Ids of collections collapsed in the list view. Stored as an array rather
+   * than a Set so it stays plain reactive state, and persisted so the tree
+   * looks the same on the next new tab. Empty means everything is expanded,
+   * which is the first-run state: show the whole library.
+   */
+  let collapsed = $state<string[]>(readCollapsed());
+
+  function readCollapsed(): string[] {
+    try {
+      const raw = localStorage.getItem(COLLAPSED_KEY);
+      const parsed: unknown = raw ? JSON.parse(raw) : null;
+      return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function toggleCollection(id: string) {
+    // Folding a folder shifts every row beneath it, so follow the selected
+    // bookmark by id rather than leaving the cursor on whatever slid into its
+    // slot. If it was inside the folder just closed it is gone from the tree,
+    // and the clamp effect takes over.
+    const keep = selectedId;
+    collapsed = collapsed.includes(id) ? collapsed.filter((c) => c !== id) : [...collapsed, id];
+    const moved = navItems.findIndex((b) => b.id === keep);
+    if (moved >= 0) selectedIndex = moved;
+    try {
+      localStorage.setItem(COLLAPSED_KEY, JSON.stringify(collapsed));
+    } catch {
+      // Persistence is a nicety; a full or blocked store shouldn't break the tree.
+    }
+  }
+
+  /**
+   * Empty folders are worth showing when browsing the whole library — they are
+   * something the user made — but are pure noise once a search or filter has
+   * narrowed the pool.
+   */
+  const isFiltered = $derived(search.trim() !== '' || selection.kind !== 'all');
+
+  const listRows = $derived(
+    buildListRows(items, collections, { collapsed: new Set(collapsed), pruneEmpty: isFiltered }),
+  );
+
+  /**
+   * What j/k, Enter and Delete walk. In list view that is the tree in the order
+   * it is drawn, minus anything hidden inside a collapsed folder; in grid view
+   * it is simply the items.
+   */
+  const navItems = $derived(view === 'list' ? visibleBookmarks(listRows) : items);
+  const selectedId = $derived(navItems[selectedIndex]?.id ?? null);
 
   async function loadData() {
     const [colList, tagList, bmList, s] = await Promise.all([
@@ -84,9 +143,9 @@
   });
 
   $effect(() => {
-    // reset selection when items change shape
-    void items;
-    if (selectedIndex >= items.length) selectedIndex = Math.max(0, items.length - 1);
+    // reset selection when the navigable rows change shape
+    void navItems;
+    if (selectedIndex >= navItems.length) selectedIndex = Math.max(0, navItems.length - 1);
   });
 
   function handleKey(e: KeyboardEvent) {
@@ -117,40 +176,40 @@
         if (e.metaKey || e.ctrlKey) {
           e.preventDefault();
           (document.querySelector('input[placeholder^="Search"]') as HTMLInputElement | null)?.focus();
-        } else if (items.length > 0) {
+        } else if (navItems.length > 0) {
           selectedIndex = Math.max(0, selectedIndex - 1);
         }
         break;
       case 'j':
       case 'J':
-        if (items.length > 0) selectedIndex = Math.min(items.length - 1, selectedIndex + 1);
+        if (navItems.length > 0) selectedIndex = Math.min(navItems.length - 1, selectedIndex + 1);
         break;
       case 'ArrowDown':
-        if (items.length > 0) {
+        if (navItems.length > 0) {
           e.preventDefault();
-          selectedIndex = Math.min(items.length - 1, selectedIndex + 1);
+          selectedIndex = Math.min(navItems.length - 1, selectedIndex + 1);
         }
         break;
       case 'ArrowUp':
-        if (items.length > 0) {
+        if (navItems.length > 0) {
           e.preventDefault();
           selectedIndex = Math.max(0, selectedIndex - 1);
         }
         break;
       case 'Enter': {
-        const b = items[selectedIndex];
+        const b = navItems[selectedIndex];
         if (b) openBookmark(b);
         break;
       }
       case 'Backspace':
       case 'Delete': {
-        const b = items[selectedIndex];
+        const b = navItems[selectedIndex];
         if (b) deleteBookmark(b);
         break;
       }
       case 's':
       case 'S': {
-        const b = items[selectedIndex];
+        const b = navItems[selectedIndex];
         if (b) bookmarks.update(b.id, { starred: !b.starred });
         break;
       }
@@ -293,7 +352,7 @@
       {#if view === 'grid'}
         <BookmarkGrid {items} {selectedIndex} onOpen={openBookmark} onDelete={deleteBookmark} />
       {:else}
-        <BookmarkList {items} {collections} {tags} {selectedIndex} onOpen={openBookmark} onDelete={deleteBookmark} />
+        <BookmarkList rows={listRows} {tags} {selectedId} onOpen={openBookmark} onDelete={deleteBookmark} onToggleCollection={toggleCollection} />
       {/if}
     </div>
   </main>
