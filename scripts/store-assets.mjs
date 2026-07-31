@@ -26,12 +26,11 @@ const PROFILE = path.join(ROOT, '.playwright-store-profile');
 
 mkdirSync(OUT, { recursive: true });
 
-// --- promo tile ----------------------------------------------------------
+// --- shared drawing -------------------------------------------------------
 
-// Same palette and moon mark as scripts/generate-icons.mjs, so the tile and
-// the icon read as one product rather than two.
-const TILE = `<svg xmlns="http://www.w3.org/2000/svg" width="440" height="280" viewBox="0 0 440 280">
-  <defs>
+// Same palette and moon mark as scripts/generate-icons.mjs, so every asset
+// reads as one product rather than a set of near-misses.
+const DEFS = `
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#0d0e15"/>
       <stop offset="100%" stop-color="#14172a"/>
@@ -43,8 +42,47 @@ const TILE = `<svg xmlns="http://www.w3.org/2000/svg" width="440" height="280" v
     <linearGradient id="ink" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0%" stop-color="#e8eaf6"/>
       <stop offset="100%" stop-color="#bd93f9"/>
-    </linearGradient>
-  </defs>
+    </linearGradient>`;
+
+/** The moon glyph, drawn in a 128-unit box. */
+const MOON = `<path d="M82 28a46 46 0 1 0 18 75 38 38 0 0 1-18-75z" fill="url(#moon)"/>`;
+
+/**
+ * Promo tiles and screenshots must be JPEG or 24-bit PNG with **no alpha**.
+ * Flattening onto the background colour drops the alpha channel; sharp then
+ * writes RGB rather than RGBA.
+ */
+async function writeOpaquePng(svg, file) {
+  await sharp(Buffer.from(svg)).flatten({ background: '#0d0e15' }).png().toFile(path.join(OUT, file));
+  console.log(`wrote release/store/${file}`);
+}
+
+// --- store icon -----------------------------------------------------------
+
+/**
+ * The listing icon is NOT the icon inside the zip. Per the store image
+ * guidelines the artwork must be 96x96 centred in a 128x128 canvas, with the
+ * surrounding 16px per side left transparent — so this one keeps its alpha.
+ *
+ * The guidelines also warn that a predominantly dark icon disappears against
+ * a dark background, which ours would; the faint outer rim is there so the
+ * tile still has an edge in dark mode without adding a visible border.
+ */
+const STORE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>${DEFS}</defs>
+  <rect x="16.75" y="16.75" width="94.5" height="94.5" rx="20.5"
+        fill="none" stroke="#aab2e8" stroke-opacity="0.28" stroke-width="1.5"/>
+  <rect x="16" y="16" width="96" height="96" rx="21" fill="url(#bg)"/>
+  <g transform="translate(16 16) scale(0.75)">${MOON}</g>
+</svg>`;
+
+await sharp(Buffer.from(STORE_ICON)).png().toFile(path.join(OUT, 'store-icon-128.png'));
+console.log('wrote release/store/store-icon-128.png');
+
+// --- small promo tile -----------------------------------------------------
+
+const TILE = `<svg xmlns="http://www.w3.org/2000/svg" width="440" height="280" viewBox="0 0 440 280">
+  <defs>${DEFS}</defs>
   <rect width="440" height="280" fill="url(#bg)"/>
   <g opacity="0.55">
     <circle cx="360" cy="48" r="1.6" fill="#8b9bff"/>
@@ -64,8 +102,48 @@ const TILE = `<svg xmlns="http://www.w3.org/2000/svg" width="440" height="280" v
   <rect x="203" y="242" width="34" height="3" rx="1.5" fill="#bd93f9"/>
 </svg>`;
 
-await sharp(Buffer.from(TILE)).png().toFile(path.join(OUT, 'promo-tile-440x280.png'));
-console.log('wrote release/store/promo-tile-440x280.png');
+await writeOpaquePng(TILE, 'promo-tile-440x280.png');
+
+// --- marquee promo tile ---------------------------------------------------
+
+/**
+ * 1400x560, used if the extension gets featured. It is displayed very wide
+ * and is cropped at the edges in some placements, so everything that has to
+ * be read stays well inside the middle.
+ */
+const MARQUEE = `<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="560" viewBox="0 0 1400 560">
+  <defs>
+    ${DEFS}
+    <radialGradient id="halo" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#8b9bff" stop-opacity="0.20"/>
+      <stop offset="100%" stop-color="#8b9bff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1400" height="560" fill="url(#bg)"/>
+  <ellipse cx="392" cy="280" rx="300" ry="240" fill="url(#halo)"/>
+  <g opacity="0.55">
+    <circle cx="1180" cy="92" r="2" fill="#8b9bff"/>
+    <circle cx="1268" cy="168" r="1.4" fill="#bd93f9"/>
+    <circle cx="1092" cy="196" r="1.4" fill="#8b9bff"/>
+    <circle cx="1320" cy="392" r="1.6" fill="#8b9bff"/>
+    <circle cx="1160" cy="470" r="1.3" fill="#bd93f9"/>
+    <circle cx="180" cy="104" r="1.6" fill="#bd93f9"/>
+    <circle cx="112" cy="418" r="1.4" fill="#8b9bff"/>
+    <circle cx="286" cy="486" r="1.2" fill="#8b9bff"/>
+    <circle cx="742" cy="86" r="1.3" fill="#bd93f9"/>
+    <circle cx="836" cy="480" r="1.2" fill="#8b9bff"/>
+  </g>
+  <g transform="translate(392 280) scale(1.5) translate(-64 -64)">${MOON}</g>
+  <text x="628" y="250" font-family="DejaVu Sans" font-size="56" font-weight="bold"
+        fill="url(#ink)">Midnight Markers</text>
+  <text x="631" y="299" font-family="DejaVu Sans" font-size="23" fill="#9aa0c0">
+    Your new tab, turned into a bookmark library.</text>
+  <rect x="631" y="330" width="54" height="4" rx="2" fill="#bd93f9"/>
+  <text x="631" y="384" font-family="DejaVu Sans" font-size="18" fill="#71769a">
+    Dark by default · Stored on your device · No account, no tracking</text>
+</svg>`;
+
+await writeOpaquePng(MARQUEE, 'marquee-promo-1400x560.png');
 
 // --- screenshots ---------------------------------------------------------
 
@@ -262,12 +340,35 @@ try {
   rmSync(PROFILE, { recursive: true, force: true });
 }
 
-// Every screenshot must be exactly 1280x800 or the store rejects it.
+// Playwright writes RGBA. The store wants 24-bit PNG with no alpha, so
+// flatten each shot in place, then confirm the dimensions it demands.
 for (const name of shots) {
   const file = path.join(OUT, `${name}.png`);
-  const { width, height } = await sharp(file).metadata();
+  const flat = await sharp(file).flatten({ background: '#0b0c14' }).png().toBuffer();
+  writeFileSync(file, flat);
+
+  const { width, height, channels } = await sharp(file).metadata();
   if (width !== 1280 || height !== 800) {
     console.error(`${name}.png is ${width}x${height}, expected 1280x800`);
+    process.exitCode = 1;
+  }
+  if (channels !== 3) {
+    console.error(`${name}.png has ${channels} channels, expected 3 (no alpha)`);
+    process.exitCode = 1;
+  }
+}
+
+// The promo tiles carry the same no-alpha rule; the store icon is the one
+// asset that must keep its alpha, for the transparent padding.
+for (const [file, wantAlpha] of [
+  ['store-icon-128.png', true],
+  ['promo-tile-440x280.png', false],
+  ['marquee-promo-1400x560.png', false],
+]) {
+  const { channels } = await sharp(path.join(OUT, file)).metadata();
+  const hasAlpha = channels === 4;
+  if (hasAlpha !== wantAlpha) {
+    console.error(`${file}: alpha=${hasAlpha}, expected ${wantAlpha}`);
     process.exitCode = 1;
   }
 }
@@ -277,11 +378,16 @@ writeFileSync(
   [
     'Chrome Web Store listing assets — regenerate with `npm run store-assets`.',
     '',
-    'promo-tile-440x280.png   small promo tile (mandatory)',
+    'store-icon-128.png             store icon, 96x96 art in a 128x128 canvas (mandatory)',
+    'promo-tile-440x280.png         small promo tile (mandatory)',
+    'marquee-promo-1400x560.png     marquee tile, only used if featured (optional)',
     ...shots.map((s) => `${s}.png   screenshot 1280x800`),
+    '',
+    'The store icon keeps its transparent padding. Everything else is',
+    '24-bit PNG with no alpha, which is what the dashboard accepts.',
     '',
     'Upload at https://chrome.google.com/webstore/devconsole',
   ].join('\n'),
 );
 
-console.log(`\n${shots.length} screenshot(s) + promo tile in release/store/`);
+console.log(`\n${shots.length} screenshot(s), 2 promo tiles + store icon in release/store/`);

@@ -1,0 +1,54 @@
+Chrome Web Store listing copy. Paste the description below into the
+Description field verbatim — the dashboard renders plain text, so the line
+breaks and hyphen bullets are what you see is what you get.
+
+Category: Productivity
+Language: English (United States)
+Homepage URL: https://organiccat.github.io/midnight-markers/
+
+
+=== DESCRIPTION (paste everything below this line) ===
+
+Midnight Markers turns your new tab into a bookmark library you'll actually open.
+
+Most bookmark managers hide your saved pages behind a folder menu you stop clicking after the first week. This one puts them in front of you. Every new tab is a dark, searchable grid of the pages you meant to come back to — and saving a page takes one click.
+
+WHAT YOU GET
+
+- A real library on every new tab. Browse as a card grid or a dense, tree-structured list with collapsible collections.
+- One-click saving from the toolbar. Star it, tag it, and file it into a collection without leaving the page.
+- Fuzzy search that keeps up as you type, across titles, domains, URLs, and your own notes.
+- Keyboard-first navigation. Ctrl/Cmd+K to search, J/K or arrows to move, Enter to open, S to star, 1 and 2 to switch views, ? for help.
+- Import your existing browser bookmarks in one click. Folder names become collections, so you keep the structure you already built.
+- Drag and drop bookmarks between collections.
+- A daily broken-link check that quietly flags saved pages that have gone dead.
+- Export and import your whole library as JSON, any time.
+
+OPTIONAL AI, USING YOUR OWN KEY
+
+If you want it, Midnight Markers can suggest a clearer title, pick tags from the ones you already use, and file a page into the right collection. It can also reorganise a messy library in bulk, showing you a preview of every change before anything moves.
+
+This runs on your own OpenRouter or Anthropic API key, billed to your account, sent straight from your browser to the provider you chose. It is switched off until you turn it on, and you can turn it back off at any time.
+
+The extension works completely normally with AI switched off. It is a feature, not the point.
+
+YOUR DATA STAYS YOURS
+
+- Your bookmarks are stored locally, in your browser's own storage.
+- There is no account to create and no server to sign in to.
+- There is no analytics, no telemetry, and no tracking of any kind.
+- The developer operates no backend and never receives your data.
+- Your API key is encrypted at rest with a non-extractable key, kept out of logs, and excluded from your export file.
+
+The only data that ever leaves your device is the page title, URL, description, and a short excerpt — and only if you enable AI features, and only to the provider you selected.
+
+Full privacy policy: https://organiccat.github.io/midnight-markers/privacy/
+
+OPEN SOURCE
+
+The complete source is on GitHub, so you can read exactly what it does rather than take the above on faith:
+https://github.com/OrganicCat/midnight-markers
+
+Works in Chrome and Brave.
+
+=== END OF DESCRIPTION ===
