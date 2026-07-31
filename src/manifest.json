@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "midnight-markers",
+  "name": "Midnight Markers",
   "description": "A dark, polished bookmark library for Brave and Chrome.",
   "version": "0.2.0",
   "icons": {

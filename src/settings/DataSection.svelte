@@ -43,7 +43,7 @@
   }
 
   async function doNative() {
-    if (!confirm('Import all browser bookmarks into midnight-markers? Folder names become collections.')) return;
+    if (!confirm('Import all browser bookmarks into Midnight Markers? Folder names become collections.')) return;
     busy = 'native';
     try {
       const r = await importNativeBookmarks();

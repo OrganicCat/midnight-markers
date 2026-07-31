@@ -11,6 +11,17 @@
   import Diagnostics from './Diagnostics.svelte';
   import ScalePicker from './ScalePicker.svelte';
 
+  // Read from the manifest rather than hardcoding, so the footer can't drift
+  // out of step with the version that actually shipped.
+  const build = (() => {
+    try {
+      const m = chrome?.runtime?.getManifest?.();
+      return m ? `${m.name} · v${m.version}` : '';
+    } catch {
+      return '';
+    }
+  })();
+
   let s = $state<Settings | null>(null);
   let modelDraft = $state<string>('anthropic/claude-haiku-4.5');
   let providerDraft = $state<ProviderId>('openrouter');
@@ -121,7 +132,7 @@
   <div class="max-w-2xl mx-auto space-y-5">
     <header>
       <h1 class="text-3xl font-semibold tracking-tight">Settings</h1>
-      <p class="text-xs opacity-50 mt-1">midnight-markers · v0.2.0</p>
+      <p class="text-xs opacity-50 mt-1">{build}</p>
     </header>
 
     {#if s}
