@@ -18,7 +18,15 @@ export default defineConfig({
   },
   build: {
     target: 'es2022',
-    sourcemap: true,
+    /**
+     * Sourcemaps are on for day-to-day builds and off for release builds.
+     *
+     * Two reasons to drop them from the uploaded package. They are roughly
+     * three quarters of the build output, and one of them is emitted as
+     * `virtual:temp.js.js.map` — a colon in a filename, which is illegal on
+     * Windows and can break extraction of the store zip.
+     */
+    sourcemap: !process.env.MM_RELEASE,
     rollupOptions: {
       output: {
         /**
