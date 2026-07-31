@@ -55,8 +55,23 @@ deliberately dropped in favour of `activeTab`.
 ## Privacy practices tab
 
 **Does your extension collect user data?** Yes — declare the categories below.
-The developer receives none of it; there is no backend and no analytics. The
-declaration covers data the extension *handles*, which is what the form asks.
+
+This trips people up, so the reasoning is worth keeping. "Local-only" is a
+true statement about this extension, but it is not an exemption from the
+form. Per the
+[user data FAQ](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq):
+
+> Extensions are required to disclose how they handle user data, even when
+> data is processed or stored locally on a user's device and is not
+> transmitted to external servers or third parties.
+
+and "handle" there means "collecting, transmitting, using, or sharing user
+data". So three categories get ticked even though the developer receives
+nothing, there is no backend, and there is no analytics.
+
+Ticking them does not put "sends your browsing to the developer" on the
+listing. The public page shows the categories alongside the certifications
+below; the privacy policy is what explains that the data stays on the device.
 
 Tick these categories:
 
@@ -66,13 +81,17 @@ Tick these categories:
 - **Authentication information** — yes. The user's own AI provider API key,
   stored encrypted on their device and sent only to that provider.
 - **Personal communications** — no
-- **Location** — no
-- **Web history** — yes. Bookmarks the user saves are, by definition, pages
-  they visited. Stored locally in IndexedDB.
-- **User activity** — no
-- **Website content** — yes. Page title, meta description and a text excerpt
-  of saved pages, stored locally, and sent to the user's chosen AI provider
-  only if they enable AI features.
+- **Location** — no. A provider sees an IP address when a request is made,
+  but that is their server log, not something this extension collects.
+- **Web history** — yes. The form defines this as "the list of web pages a
+  user has visited, as well as associated data such as page title and time of
+  visit", which describes a bookmark library exactly. The optional import
+  also reads the browser's existing bookmark tree. Stored in IndexedDB.
+- **User activity** — no. No click, scroll, mouse-position or keystroke
+  logging, and no network monitoring. Keyboard shortcuts are not keylogging.
+- **Website content** — yes. Page title, meta description, a text excerpt and
+  a thumbnail of saved pages, stored locally, and sent to the user's chosen
+  AI provider only if they enable AI features.
 
 **Certifications** — all three can be checked truthfully:
 
