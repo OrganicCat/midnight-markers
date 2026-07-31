@@ -1,8 +1,13 @@
-# Privacy Policy — midnight-markers
+---
+title: Privacy Policy
+permalink: /privacy/
+---
+
+# Privacy Policy — Midnight Markers
 
 **Last updated: 20 July 2026**
 
-midnight-markers is a bookmark manager browser extension. This policy explains
+Midnight Markers is a bookmark manager browser extension. This policy explains
 exactly what data it handles, where that data goes, and what it never does.
 
 ## Short version
@@ -11,11 +16,11 @@ Your bookmarks stay on your own device. The only time anything leaves it is
 when *you* turn on the optional AI features, and then only the specific fields
 listed below, sent directly to your chosen AI provider using *your own* API
 key. The
-developer of midnight-markers operates no servers and never receives your data.
+developer of Midnight Markers operates no servers and never receives your data.
 
 ## Who we are
 
-midnight-markers is a free browser extension. There is no company, no backend
+Midnight Markers is a free browser extension. There is no company, no backend
 service, and no analytics.
 
 Contact: **lee.delarm@gmail.com**
@@ -112,7 +117,7 @@ The API key is additionally:
 
 ## Limited Use disclosure
 
-midnight-markers' use of information received from Google APIs and from the
+Midnight Markers' use of information received from Google APIs and from the
 Chrome Web Store adheres to the
 [Chrome Web Store User Data Policy](https://developer.chrome.com/docs/webstore/program-policies/user-data-faq),
 including the Limited Use requirements. Data is used solely to provide the

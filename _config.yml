@@ -1,0 +1,25 @@
+# GitHub Pages config. This site exists mainly to serve the privacy policy at
+# a stable public URL, which the Chrome Web Store requires.
+title: Midnight Markers
+description: A dark, polished bookmark library for Brave and Chrome.
+theme: jekyll-theme-minimal
+
+# Repo scaffolding that should not become web pages.
+exclude:
+  - node_modules
+  - dist
+  - release
+  - scripts
+  - src
+  - tests
+  - docs
+  - package.json
+  - package-lock.json
+  - tsconfig.json
+  - vite.config.ts
+  - vitest.config.ts
+  - playwright.config.ts
+  - svelte.config.js
+  - tailwind.config.js
+  - postcss.config.js
+  - eslint.config.js
