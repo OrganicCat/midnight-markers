@@ -2,6 +2,9 @@
 
 A dark, polished bookmark extension for Brave & Chrome — Raindrop-flavored, midnight-themed, AI-optional.
 
+Site: <https://organiccat.github.io/midnight-markers/> ·
+Privacy policy: <https://organiccat.github.io/midnight-markers/privacy/>
+
 ## Features
 
 - **New tab page** as your bookmark library: card grid (default) or dense list.

@@ -98,8 +98,9 @@ Tick these categories:
 Anthropic SDK is bundled at build time by Vite; nothing is fetched and
 evaluated at runtime, and there is no `eval` or `new Function` in the source.
 
-**Privacy policy URL:** the hosted copy of [`PRIVACY.md`](../PRIVACY.md).
-See the hosting note below.
+**Privacy policy URL:**
+
+    https://organiccat.github.io/midnight-markers/privacy/
 
 ## What is sent off the device, precisely
 
@@ -118,15 +119,18 @@ history, no other bookmarks, no identifiers.
 
 ## Privacy policy hosting
 
-The store requires a publicly reachable URL, so `PRIVACY.md` has to be served
-somewhere. Using GitHub Pages:
+Done. The repo is public at
+<https://github.com/OrganicCat/midnight-markers> and GitHub Pages serves it
+from `main` at the root:
 
-1. Create a public GitHub repo and push `main`.
-2. Repo → Settings → Pages → Source: "Deploy from a branch", branch `main`,
-   folder `/ (root)`.
-3. The policy lands at `https://<user>.github.io/<repo>/PRIVACY`.
-4. Open it in a private window before pasting it into the dashboard — a 404
-   here fails the review.
+- Site: <https://organiccat.github.io/midnight-markers/>
+- Policy: <https://organiccat.github.io/midnight-markers/privacy/>
+
+Worth knowing if the policy ever stops rendering: Pages runs Jekyll, and
+Jekyll only converts Markdown that carries YAML front matter. `PRIVACY.md`
+has front matter and a `/privacy/` permalink for exactly that reason. Strip
+it and the file reverts to a raw download, which is not an acceptable
+privacy policy URL.
 
 ## Listing images
 
