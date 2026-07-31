@@ -1,0 +1,81 @@
+Chrome Web Store — Privacy practices tab. Paste each block into the matching
+field. Every one is under the 1000-character limit.
+
+Each justification describes what the code actually does. If the extension
+changes, change these too — a justification a reviewer can disprove by
+reading the source is worse than no justification.
+
+
+================================================================
+storage
+================================================================
+Used to persist the most recent AI request failure — status code, error message, model name and endpoint — so the Settings page can show it in a diagnostics panel. This lets the user see why an AI suggestion failed (an invalid key, a rate limit, a network error) without opening DevTools. They can clear it from Settings at any time.
+
+That record holds no page content and no API key.
+
+Note that the extension's actual data — bookmarks, collections, tags, preferences and the encrypted API key — is stored in IndexedDB, which requires no permission. chrome.storage.local is used only for this single diagnostic record.
+
+
+================================================================
+activeTab
+================================================================
+Used when the user clicks the toolbar button to save the page they are looking at. The extension reads that tab's URL and title, and calls chrome.tabs.captureVisibleTab to generate a thumbnail for the bookmark card when the page provides no og:image.
+
+activeTab grants this for that one tab only, and only in response to the user clicking the extension's action. It gives no access to any tab the user has not explicitly chosen to save, and none at all in the background.
+
+We use activeTab specifically instead of the broader "tabs" permission, which was removed in an earlier version, so that the extension cannot enumerate or read the user's tabs.
+
+
+================================================================
+scripting
+================================================================
+Used once per save. When the user clicks the toolbar button, chrome.scripting.executeScript runs a single metadata-extraction function in the active tab to read the page title, meta description, og:image URL and up to 500 characters of visible text. That is the information shown on the resulting bookmark card.
+
+The function is passed as a static function reference (the "func" option), not as a code string, so no dynamic or remote code is injected.
+
+It runs only in the tab the user is actively saving, only in response to their click, and never on a timer or in the background. The extension registers no content scripts, so nothing is injected into pages the user has not saved.
+
+
+================================================================
+bookmarks
+================================================================
+Powers the optional "Import browser bookmarks" feature. When the user starts an import from the Settings page, the extension calls chrome.bookmarks.getTree() once, copies those bookmarks into its own local library, and turns folder names into collections so the user keeps the structure they already built.
+
+Access is read-only. The extension never creates, edits, moves or deletes a browser bookmark, and it calls the API only when the user explicitly triggers an import — never automatically and never in the background.
+
+The imported data is written to local IndexedDB storage and is not transmitted anywhere.
+
+
+================================================================
+alarms
+================================================================
+Schedules the daily broken-link check. On install the extension creates one alarm with a 24-hour period. When it fires, the service worker checks a batch of the user's saved bookmarks to see whether their URLs still resolve, and flags the ones that no longer do, so dead links are visible in the library rather than discovered by clicking them.
+
+This is the only alarm the extension registers, and it drives no other behaviour.
+
+The permission is necessary because a Manifest V3 service worker is terminated when idle and cannot schedule recurring work by staying alive.
+
+
+================================================================
+Host permission  (covers both hosts)
+================================================================
+The two hosts are AI provider API endpoints, used only for the optional AI features:
+
+https://openrouter.ai/* — OpenRouter API
+https://api.anthropic.com/* — Anthropic API
+
+When the user has switched AI features on and supplied their own API key, the extension sends the saved page's title, URL, meta description and a 500-character excerpt, plus the names of their existing tags and collections, to whichever provider they selected. The provider returns a suggested title, tags and a collection to file the page under.
+
+Requests go directly from the user's browser to that provider, authenticated with the user's own key and billed to their own account. No server operated by the developer is involved; there is no backend.
+
+Exactly one provider is active at a time and nothing is sent to the other. AI features are off by default and require the user to accept an in-product disclosure first. No other host is requested, so the browser blocks requests anywhere else.
+
+
+================================================================
+Are you using remote code?   ->   No, I am not using Remote code
+================================================================
+All JavaScript and WebAssembly the extension executes is contained in the uploaded package. Dependencies, including the Anthropic SDK, are bundled at build time by Vite; nothing is fetched and executed at runtime.
+
+There are no script tags referencing external files, no modules pointing at remote files, no eval() and no new Function() anywhere in the source. The chrome.scripting call passes a static function reference rather than a code string.
+
+The extension does make network requests to the two AI provider APIs, but those return JSON data which is parsed as data and never executed as code.

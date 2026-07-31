@@ -30,39 +30,27 @@ self-hosted or enterprise-deployed extensions.
 
 ## Permission justifications
 
-Paste each into the matching field. Every permission below is used; there is
-nothing declared speculatively.
+The full paste-ready text for every field, each within the dashboard's
+1000-character limit, is in [`STORE-PERMISSIONS.txt`](STORE-PERMISSIONS.txt).
+Summary of what each permission is actually for:
 
-**storage** — Stores the user's preferences (theme scale, default view,
-selected AI model) and the encrypted API key. Also holds the last AI error so
-the diagnostics panel can display it.
+| Permission | Used for | Where |
+|---|---|---|
+| `storage` | The last AI error, for the diagnostics panel — nothing else | `src/lib/log.ts` |
+| `activeTab` | Reading the current tab's URL/title and capturing a thumbnail, on click | `src/popup/App.svelte`, `src/lib/metadata/thumbnail.ts` |
+| `scripting` | One metadata-extraction function in the tab being saved | `src/popup/App.svelte:123` |
+| `bookmarks` | Read-only `getTree()` for the optional import | `src/lib/native/importBookmarks.ts` |
+| `alarms` | The single daily broken-link alarm | `src/background/service-worker.ts` |
 
-**activeTab** — Lets the toolbar popup read the page the user is currently
-looking at, at the moment they click Save. Access is limited to that one tab
-and only in response to that click.
+One correction worth keeping straight, because it is easy to get wrong and a
+reviewer can check it: `storage` is **not** where the extension keeps its
+data. Bookmarks, collections, tags, preferences and the encrypted API key all
+live in IndexedDB, which needs no permission. `chrome.storage.local` holds
+only the most recent AI error record.
 
-**scripting** — Runs a single metadata extraction function in the active tab
-when the user clicks Save, to read the page title, meta description, og:image
-and a short text excerpt. It is a static function, not injected code, and it
-does not run on any page the user has not explicitly saved.
-
-**bookmarks** — Powers the one-click "Import browser bookmarks" feature, which
-copies the user's existing bookmark tree into the extension's own library and
-turns folder names into collections. Read-only, and only when the user starts
-the import.
-
-**alarms** — Schedules the daily broken-link check, which revisits saved URLs
-in the background and flags ones that no longer resolve.
-
-**Host permission: `https://openrouter.ai/*`** — Sends bookmark metadata to
-OpenRouter for AI tag and title suggestions, using the user's own API key,
-only after they have opted in.
-
-**Host permission: `https://api.anthropic.com/*`** — Same as above for users
-who choose Anthropic as their provider instead.
-
-Note there is no `<all_urls>` and no broad host access. The two hosts are the
-only AI endpoints the extension can reach.
+There is no `<all_urls>` and no broad host access. The two AI endpoints are
+the only hosts the extension can reach, and the `tabs` permission was
+deliberately dropped in favour of `activeTab`.
 
 ## Privacy practices tab
 
