@@ -43,7 +43,7 @@ upload rejected (manifest at the archive root, no underscore-prefixed paths,
 no filenames Windows can't handle) before the zip is written.
 
 The Chrome Web Store takes that zip and signs the crx itself; you never
-upload a crx. See [`docs/STORE-SUBMISSION.md`](docs/STORE-SUBMISSION.md) for
+upload a crx. See [`docs/store-listing.md`](docs/store-listing.md) for
 the permission justifications and privacy answers the dashboard asks for.
 
 ## Docs
