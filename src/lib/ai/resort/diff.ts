@@ -7,8 +7,24 @@ export function planToChanges(input: {
   plan: ResortPlan;
 }): Change[] {
   const { folders, bookmarks, plan } = input;
+
+  // Everything downstream of here — the model's own merge and rename
+  // instructions, the preview tree, and apply's path resolution — treats a path
+  // as a folder's identity. Two folders sharing a path break that assumption:
+  // whichever landed in `byPath` last used to win, and the other became
+  // invisible to the whole diff.
+  //
+  // So the first copy of each path is the canonical one, and every later copy
+  // is folded into it by a merge the user can review like any other change.
+  // Once those are applied, paths are unique again and the assumption holds.
   const byPath = new Map<string, FolderNode>();
-  for (const f of folders) byPath.set(pathKey(f.path), f);
+  const duplicates: Array<{ source: FolderNode; target: FolderNode }> = [];
+  for (const f of folders) {
+    const k = pathKey(f.path);
+    const canonical = byPath.get(k);
+    if (canonical) duplicates.push({ source: f, target: canonical });
+    else byPath.set(k, f);
+  }
 
   const renames: Change[] = [];
   const merges: Change[] = [];
@@ -55,22 +71,35 @@ export function planToChanges(input: {
   // --- merges --------------------------------------------------------------
   const mergedSourceIds = new Set<string>();
   const mergeTargetIds = new Set<string>();
-  for (const m of plan.skeleton.merges) {
-    const source = byPath.get(pathKey(m.from));
-    const target = byPath.get(pathKey(m.into));
-    if (!source || !target || source.id === target.id) continue;
-    if (mergedSourceIds.has(source.id)) continue;
+
+  const addMerge = (source: FolderNode, target: FolderNode): void => {
+    if (source.id === target.id) return;
+    if (mergedSourceIds.has(source.id)) return;
     // Merging a folder into its own descendant would orphan the subtree.
-    if (isPathPrefix(source.path, target.path)) continue;
+    // Equal paths are the duplicate case, not ancestry — two distinct folders
+    // at the same path are siblings, so the fold is exactly what we want.
+    if (target.path.length > source.path.length && isPathPrefix(source.path, target.path)) return;
     mergedSourceIds.add(source.id);
     mergeTargetIds.add(target.id);
     merges.push({
       kind: 'folder-merge',
       key: `merge:${source.id}`,
       sourceId: source.id,
+      targetId: target.id,
       sourcePath: source.path,
       targetPath: target.path,
     });
+  };
+
+  // Duplicates first, so the model cannot claim one as a merge source and leave
+  // the library ambiguous.
+  for (const d of duplicates) addMerge(d.source, d.target);
+
+  for (const m of plan.skeleton.merges) {
+    const source = byPath.get(pathKey(m.from));
+    const target = byPath.get(pathKey(m.into));
+    if (!source || !target) continue;
+    addMerge(source, target);
   }
 
   // --- bookmark moves ------------------------------------------------------

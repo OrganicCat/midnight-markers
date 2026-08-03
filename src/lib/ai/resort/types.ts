@@ -46,7 +46,19 @@ export type ResortPlan = {
 export type Change =
   | { kind: 'folder-new'; key: string; path: string[] }
   | { kind: 'folder-rename'; key: string; id: string; from: string; to: string; path: string[] }
-  | { kind: 'folder-merge'; key: string; sourceId: string; sourcePath: string[]; targetPath: string[] }
+  | {
+      kind: 'folder-merge';
+      key: string;
+      sourceId: string;
+      /**
+       * The surviving folder, by id. Paths cannot name a merge target when two
+       * folders share one, so apply resolves by id and falls back to the path
+       * only if the row has since gone.
+       */
+      targetId: string;
+      sourcePath: string[];
+      targetPath: string[];
+    }
   | { kind: 'folder-delete'; key: string; id: string; path: string[] }
   | {
       kind: 'bookmark-move';

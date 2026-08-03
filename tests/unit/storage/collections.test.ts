@@ -1,8 +1,9 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { describe, it, expect, beforeEach } from 'vitest';
-import { _resetDbForTests } from '$lib/storage/db';
+import { _resetDbForTests, getDb } from '$lib/storage/db';
 import { collections } from '$lib/storage/collections';
+import { bookmarks } from '$lib/storage/bookmarks';
 
 beforeEach(() => {
   globalThis.indexedDB = new IDBFactory();
@@ -122,6 +123,114 @@ describe('collections', () => {
     const child = await collections.create({ name: 'Child', parentId: parent.id });
     await collections.move(child.id, null, 0);
     expect((await collections.get(child.id))?.parentId).toBeNull();
+  });
+
+  // --- duplicate prevention ------------------------------------------------
+
+  it('create returns the existing sibling instead of a duplicate name', async () => {
+    const first = await collections.create({ name: 'Games' });
+    const second = await collections.create({ name: 'games' });
+    expect(second.id).toBe(first.id);
+    expect(await collections.list()).toHaveLength(1);
+  });
+
+  it('create still allows the same name under a different parent', async () => {
+    const parent = await collections.create({ name: 'Gaming' });
+    const root = await collections.create({ name: 'Builds' });
+    const nested = await collections.create({ name: 'Builds', parentId: parent.id });
+    expect(nested.id).not.toBe(root.id);
+    expect(await collections.list()).toHaveLength(3);
+  });
+
+  it('move refuses to create a same-named sibling', async () => {
+    const parent = await collections.create({ name: 'Gaming' });
+    await collections.create({ name: 'Builds', parentId: parent.id });
+    const stray = await collections.create({ name: 'builds' });
+    const result = await collections.move(stray.id, parent.id, 0);
+    expect(result).toEqual({ ok: false, reason: 'name-collision' });
+    expect((await collections.get(stray.id))?.parentId).toBeNull();
+  });
+
+  it('move reports a rejected cycle rather than silently doing nothing', async () => {
+    const a = await collections.create({ name: 'A' });
+    const b = await collections.create({ name: 'B', parentId: a.id });
+    const result = await collections.move(a.id, b.id, 0);
+    expect(result).toEqual({ ok: false, reason: 'cycle' });
+  });
+
+  it('move reports success on a normal move', async () => {
+    const parent = await collections.create({ name: 'P' });
+    const child = await collections.create({ name: 'C' });
+    expect(await collections.move(child.id, parent.id, 0)).toEqual({ ok: true });
+  });
+
+  // --- duplicates & repair ---------------------------------------------------
+
+  it('duplicateSiblings finds same-named siblings and ignores other parents', async () => {
+    const a = await collections.create({ name: 'Games' });
+    const db = await getDb();
+    // Force a duplicate past create()'s guard, as older builds could produce.
+    await db.put('collections', { ...a, id: 'dup', name: 'games' });
+    const parent = await collections.create({ name: 'Elsewhere' });
+    await db.put('collections', { ...a, id: 'nested', name: 'Games', parentId: parent.id });
+
+    const dups = await collections.duplicateSiblings(a.id);
+    expect(dups.map((d) => d.id)).toEqual(['dup']);
+  });
+
+  it('absorb moves bookmarks and child folders, then deletes the source', async () => {
+    const target = await collections.create({ name: 'Games' });
+    const db = await getDb();
+    await db.put('collections', { ...target, id: 'dup', name: 'Games' });
+    await db.put('collections', { ...target, id: 'kid', name: 'PoE', parentId: 'dup' });
+    const b = await bookmarks.create({ url: 'https://x.com', title: 'x', originalTitle: 'x' });
+    await bookmarks.update(b.id, { collectionId: 'dup' });
+
+    const moved = await collections.absorb('dup', target.id);
+
+    expect(moved).toEqual({ bookmarks: 1, children: 1 });
+    expect(await collections.get('dup')).toBeNull();
+    expect((await collections.get('kid'))?.parentId).toBe(target.id);
+    expect((await bookmarks.get(b.id))?.collectionId).toBe(target.id);
+  });
+
+  it('absorb refuses to fold a collection into itself or its own descendant', async () => {
+    const a = await collections.create({ name: 'A' });
+    const b = await collections.create({ name: 'B', parentId: a.id });
+    await expect(collections.absorb(a.id, a.id)).rejects.toThrow();
+    await expect(collections.absorb(a.id, b.id)).rejects.toThrow();
+  });
+
+  // --- remove ---------------------------------------------------------------
+
+  it('remove unfiles its bookmarks and promotes its children', async () => {
+    const parent = await collections.create({ name: 'Parent' });
+    const doomed = await collections.create({ name: 'Doomed', parentId: parent.id });
+    const kid = await collections.create({ name: 'Kid', parentId: doomed.id });
+    const b = await bookmarks.create({ url: 'https://y.com', title: 'y', originalTitle: 'y' });
+    await bookmarks.update(b.id, { collectionId: doomed.id });
+
+    const freed = await collections.remove(doomed.id);
+
+    expect(freed).toEqual({ bookmarks: 1, children: 1 });
+    expect(await collections.get(doomed.id)).toBeNull();
+    expect((await collections.get(kid.id))?.parentId).toBe(parent.id);
+    expect((await bookmarks.get(b.id))?.collectionId).toBeNull();
+  });
+
+  it('remove promotes children of a top-level collection to the root', async () => {
+    const top = await collections.create({ name: 'Top' });
+    const kid = await collections.create({ name: 'Kid', parentId: top.id });
+    await collections.remove(top.id);
+    expect((await collections.get(kid.id))?.parentId).toBeNull();
+  });
+
+  it('countContents reports direct bookmarks and children', async () => {
+    const c = await collections.create({ name: 'C' });
+    await collections.create({ name: 'Kid', parentId: c.id });
+    const b = await bookmarks.create({ url: 'https://z.com', title: 'z', originalTitle: 'z' });
+    await bookmarks.update(b.id, { collectionId: c.id });
+    expect(await collections.countContents(c.id)).toEqual({ bookmarks: 1, children: 1 });
   });
 
   it('listWithPaths returns paths and depth', async () => {

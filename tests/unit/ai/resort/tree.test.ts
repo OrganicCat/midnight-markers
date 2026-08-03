@@ -140,4 +140,63 @@ describe('buildPreviewTree', () => {
     expect(unfiled?.name).toBe('Unfiled');
     expect(unfiled?.bookmarks.map((b) => b.id)).toEqual(['b1']);
   });
+
+  // --- duplicates ------------------------------------------------------------
+
+  it('shows one folder, and its bookmarks, when two copies are merged', () => {
+    const folders = [folder('c1', ['Games']), folder('c2', ['Games'])];
+    const bookmarks = [bm('b1', ['Games']), bm('b2', ['Games'])];
+    const plan: ResortPlan = {
+      skeleton: { folders: [['Games']], renames: [], merges: [] },
+      filings: [
+        { id: 'b1', path: ['Games'] },
+        { id: 'b2', path: ['Games'] },
+      ],
+      unplannedIds: [],
+    };
+    const changes = planToChanges({ folders, bookmarks, plan });
+    const tree = buildPreviewTree({ folders, bookmarks, changes, selected: allKeys(changes) });
+
+    expect(tree).toHaveLength(1);
+    const games = tree[0]!;
+    expect(games.id).toBe('folder:c1');
+    expect(games.badge).toEqual({ kind: 'merged', from: 'Games' });
+    expect(games.bookmarks.map((b) => b.id).sort()).toEqual(['b1', 'b2']);
+  });
+
+  it('follows a chain of merges so no phantom folder is left behind', () => {
+    const folders = [folder('c1', ['Games']), folder('c2', ['Games']), folder('c3', ['Play'])];
+    const bookmarks = [bm('b1', ['Games'])];
+    const plan: ResortPlan = {
+      skeleton: { folders: [['Play']], renames: [], merges: [{ from: ['Games'], into: ['Play'] }] },
+      filings: [],
+      unplannedIds: [],
+    };
+    const changes = planToChanges({ folders, bookmarks, plan });
+    const tree = buildPreviewTree({ folders, bookmarks, changes, selected: allKeys(changes) });
+
+    expect(tree.map((n) => n.name)).toEqual(['Play']);
+    expect(tree[0]!.bookmarks.map((b) => b.id)).toEqual(['b1']);
+  });
+
+  it('keeps the merged badge on a target that is also being renamed', () => {
+    const folders = [folder('c1', ['Web Dev']), folder('c2', ['Dev'])];
+    const bookmarks: BookmarkRef[] = [];
+    const plan: ResortPlan = {
+      skeleton: {
+        folders: [['Development']],
+        renames: [{ from: ['Dev'], to: 'Development' }],
+        merges: [{ from: ['Web Dev'], into: ['Dev'] }],
+      },
+      filings: [],
+      unplannedIds: [],
+    };
+    const changes = planToChanges({ folders, bookmarks, plan });
+    const tree = buildPreviewTree({ folders, bookmarks, changes, selected: allKeys(changes) });
+
+    const dev = find(tree, 'Development');
+    expect(dev).toBeDefined();
+    expect(dev!.badge).toEqual({ kind: 'renamed', from: 'Dev' });
+    expect(find(tree, 'Web Dev')).toBeUndefined();
+  });
 });

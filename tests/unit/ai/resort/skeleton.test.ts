@@ -66,4 +66,16 @@ describe('sampleBookmarks', () => {
     const input = Array.from({ length: 20 }, (_, i) => bm(`x${i}`, `X ${i}`, [i % 3 === 0 ? 'A' : 'B']));
     expect(sampleBookmarks(input, 7).map((b) => b.id)).toEqual(sampleBookmarks(input, 7).map((b) => b.id));
   });
+
+  it('lists a duplicated folder path only once', () => {
+    const messages = buildSkeletonMessages({
+      folders: [
+        { id: 'c1', name: 'Games', parentId: null, path: ['Games'] },
+        { id: 'c2', name: 'games', parentId: null, path: ['games'] },
+      ],
+      sample: [],
+    });
+    const user = messages[1]!.content;
+    expect(user.match(/Games/gi)).toHaveLength(1);
+  });
 });

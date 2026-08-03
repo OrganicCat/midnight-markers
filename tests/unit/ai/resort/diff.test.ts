@@ -143,7 +143,14 @@ describe('planToChanges', () => {
       plan: plan({ folders: [['Dev']], skeleton: { merges: [{ from: ['Web Dev'], into: ['Dev'] }] } }),
     });
     expect(changes.filter((c) => c.kind === 'folder-merge')).toEqual([
-      { kind: 'folder-merge', key: 'merge:c1', sourceId: 'c1', sourcePath: ['Web Dev'], targetPath: ['Dev'] },
+      {
+        kind: 'folder-merge',
+        key: 'merge:c1',
+        sourceId: 'c1',
+        targetId: 'c2',
+        sourcePath: ['Web Dev'],
+        targetPath: ['Dev'],
+      },
     ]);
   });
 
@@ -211,6 +218,109 @@ describe('planToChanges', () => {
       'bookmark-move',
       'folder-delete',
     ]);
+  });
+
+  // --- duplicate folders ----------------------------------------------------
+
+  it('merges same-named siblings into the first, without the model asking', () => {
+    const changes = planToChanges({
+      folders: [folder('c1', ['Games']), folder('c2', ['Games'])],
+      bookmarks: [bm('b1', ['Games'])],
+      plan: plan({ folders: [['Games']], filings: [{ id: 'b1', path: ['Games'] }] }),
+    });
+    expect(changes.filter((c) => c.kind === 'folder-merge')).toEqual([
+      {
+        kind: 'folder-merge',
+        key: 'merge:c2',
+        sourceId: 'c2',
+        targetId: 'c1',
+        sourcePath: ['Games'],
+        targetPath: ['Games'],
+      },
+    ]);
+  });
+
+  it('merges every extra copy when there are three of the same folder', () => {
+    const changes = planToChanges({
+      folders: [folder('c1', ['Games']), folder('c2', ['games']), folder('c3', ['GAMES'])],
+      bookmarks: [],
+      plan: plan({ folders: [['Games']] }),
+    });
+    expect(
+      changes.filter((c) => c.kind === 'folder-merge').map((c) => (c as { sourceId: string }).sourceId),
+    ).toEqual(['c2', 'c3']);
+  });
+
+  it('leaves same-named folders under different parents alone', () => {
+    const changes = planToChanges({
+      folders: [
+        folder('p1', ['Gaming']),
+        folder('p2', ['Dev']),
+        folder('c1', ['Gaming', 'Builds'], 'p1'),
+        folder('c2', ['Dev', 'Builds'], 'p2'),
+      ],
+      bookmarks: [],
+      plan: plan({ folders: [['Gaming', 'Builds']] }),
+    });
+    expect(changes.filter((c) => c.kind === 'folder-merge')).toEqual([]);
+  });
+
+  it('chains a duplicate fold into a merge the model asked for, in that order', () => {
+    // The duplicate collapses into the surviving copy first, and only then does
+    // that copy move where the model wanted it. Applying in list order leaves
+    // everything in Play; doing it the other way round would strand a copy.
+    const changes = planToChanges({
+      folders: [folder('c1', ['Games']), folder('c2', ['Games']), folder('c3', ['Play'])],
+      bookmarks: [],
+      plan: plan({
+        folders: [['Games']],
+        skeleton: { merges: [{ from: ['Games'], into: ['Play'] }] },
+      }),
+    });
+    expect(
+      changes
+        .filter((c) => c.kind === 'folder-merge')
+        .map((c) => [(c as { sourceId: string }).sourceId, (c as { targetId: string }).targetId]),
+    ).toEqual([
+      ['c2', 'c1'],
+      ['c1', 'c3'],
+    ]);
+  });
+
+  it('resolves a model merge onto the surviving copy of a duplicated target', () => {
+    const changes = planToChanges({
+      folders: [folder('c1', ['Games']), folder('c2', ['Games']), folder('c3', ['Play'])],
+      bookmarks: [],
+      plan: plan({
+        folders: [['Games']],
+        skeleton: { merges: [{ from: ['Play'], into: ['Games'] }] },
+      }),
+    });
+    const play = changes.find(
+      (c) => c.kind === 'folder-merge' && (c as { sourceId: string }).sourceId === 'c3',
+    );
+    expect((play as { targetId: string }).targetId).toBe('c1');
+  });
+
+  it('does not propose deleting either copy of a duplicate', () => {
+    const changes = planToChanges({
+      folders: [folder('c1', ['Games']), folder('c2', ['Games']), folder('c3', ['Dev'])],
+      bookmarks: [bm('b1', ['Games'])],
+      plan: plan({ folders: [['Dev']], filings: [{ id: 'b1', path: ['Dev'] }] }),
+    });
+    expect(changes.filter((c) => c.kind === 'folder-delete')).toEqual([]);
+  });
+
+  it('does not rename a folder into a name a duplicate group already holds', () => {
+    const changes = planToChanges({
+      folders: [folder('c1', ['Games']), folder('c2', ['Games']), folder('c3', ['Play'])],
+      bookmarks: [],
+      plan: plan({
+        folders: [['Games']],
+        skeleton: { renames: [{ from: ['Play'], to: 'Games' }] },
+      }),
+    });
+    expect(changes.filter((c) => c.kind === 'folder-rename')).toEqual([]);
   });
 
   it('returns an empty array when nothing would change', () => {

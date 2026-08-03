@@ -16,6 +16,9 @@
     onMoveBookmarkToCollection,
     onMoveCollection,
     onResortCollection,
+    onRenameCollection,
+    onDeleteCollection,
+    onMergeDuplicates,
   }: {
     collections: Collection[];
     tags: Tag[];
@@ -24,13 +27,20 @@
     onMoveBookmarkToCollection?: (bookmarkId: string, collectionId: string) => void;
     onMoveCollection?: (id: string, parentId: string | null, index: number) => void;
     onResortCollection?: (id: string) => void;
+    onRenameCollection?: (id: string) => void;
+    onDeleteCollection?: (id: string) => void;
+    onMergeDuplicates?: (id: string) => void;
   } = $props();
 
   // Right-click menu on a collection row.
   let menuFor = $state<{ id: string; x: number; y: number } | null>(null);
 
+  const hasMenu = $derived(
+    !!onResortCollection || !!onRenameCollection || !!onDeleteCollection || !!onMergeDuplicates,
+  );
+
   function openMenu(e: MouseEvent, id: string): void {
-    if (!onResortCollection) return;
+    if (!hasMenu) return;
     e.preventDefault();
     menuFor = { id, x: e.clientX, y: e.clientY };
   }
@@ -38,6 +48,22 @@
   function closeMenu(): void {
     menuFor = null;
   }
+
+  /**
+   * Same-named siblings of the right-clicked collection. Current builds refuse
+   * to create these, but libraries made before that guard can still hold them,
+   * and they are the one thing the sidebar cannot otherwise tell apart.
+   */
+  const duplicatesOfMenuTarget = $derived.by<Collection[]>(() => {
+    const id = menuFor?.id;
+    if (!id) return [];
+    const self = collections.find((c) => c.id === id);
+    if (!self) return [];
+    const name = self.name.trim().toLowerCase();
+    return collections.filter(
+      (c) => c.id !== id && c.parentId === self.parentId && c.name.trim().toLowerCase() === name,
+    );
+  });
 
   const COLLECTION_MIME = 'application/x-collection-id';
   const BOOKMARK_MIME = 'application/x-bookmark-id';
@@ -230,9 +256,30 @@
     class="fixed z-50 rounded-lg border border-white/10 bg-[#12131a] py-1 shadow-xl"
     style="left: {menuFor.x}px; top: {menuFor.y}px"
   >
-    <button
-      class="block w-full text-left text-xs px-3 py-1.5 hover:bg-white/10 whitespace-nowrap"
-      onclick={() => { const id = menuFor!.id; closeMenu(); onResortCollection?.(id); }}
-    >✦ Resort this folder</button>
+    {#if onRenameCollection}
+      <button
+        class="block w-full text-left text-xs px-3 py-1.5 hover:bg-white/10 whitespace-nowrap"
+        onclick={() => { const id = menuFor!.id; closeMenu(); onRenameCollection(id); }}
+      >Rename…</button>
+    {/if}
+    {#if onMergeDuplicates && duplicatesOfMenuTarget.length > 0}
+      <button
+        class="block w-full text-left text-xs px-3 py-1.5 hover:bg-white/10 whitespace-nowrap"
+        onclick={() => { const id = menuFor!.id; closeMenu(); onMergeDuplicates(id); }}
+      >Merge {duplicatesOfMenuTarget.length} duplicate{duplicatesOfMenuTarget.length === 1 ? '' : 's'} into this</button>
+    {/if}
+    {#if onResortCollection}
+      <button
+        class="block w-full text-left text-xs px-3 py-1.5 hover:bg-white/10 whitespace-nowrap"
+        onclick={() => { const id = menuFor!.id; closeMenu(); onResortCollection(id); }}
+      >✦ Resort this folder</button>
+    {/if}
+    {#if onDeleteCollection}
+      <div class="my-1 border-t border-white/10"></div>
+      <button
+        class="block w-full text-left text-xs px-3 py-1.5 hover:bg-white/10 whitespace-nowrap text-red-300"
+        onclick={() => { const id = menuFor!.id; closeMenu(); onDeleteCollection(id); }}
+      >Delete</button>
+    {/if}
   </div>
 {/if}

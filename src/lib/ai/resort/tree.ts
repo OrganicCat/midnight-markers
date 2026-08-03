@@ -24,14 +24,32 @@ export function buildPreviewTree(input: {
   for (const c of active) if (c.kind === 'folder-rename') renameByFolder.set(c.id, c);
 
   const mergedAway = new Set<string>();
-  const mergeBadgeByPath = new Map<string, PreviewBadge>();
+  /** source folder id → the folder it is being folded into. */
+  const mergeTargetById = new Map<string, string>();
+  const mergeBadgeById = new Map<string, PreviewBadge>();
   for (const c of active) {
     if (c.kind !== 'folder-merge') continue;
     mergedAway.add(c.sourceId);
-    mergeBadgeByPath.set(pathKey(c.targetPath), {
+    mergeTargetById.set(c.sourceId, c.targetId);
+    mergeBadgeById.set(c.targetId, {
       kind: 'merged',
       from: c.sourcePath[c.sourcePath.length - 1] ?? '',
     });
+  }
+
+  /**
+   * The folder that survives after all selected merges. Merges chain — a
+   * duplicate folds into its surviving copy, which may itself fold somewhere
+   * else — so following one hop is not enough.
+   */
+  function survivorOf(id: string): string {
+    let cur = id;
+    for (let hop = 0; hop < mergeTargetById.size + 1; hop++) {
+      const next = mergeTargetById.get(cur);
+      if (next === undefined) return cur;
+      cur = next;
+    }
+    return cur;
   }
 
   const deleteByFolder = new Map<string, Extract<Change, { kind: 'folder-delete' }>>();
@@ -91,22 +109,25 @@ export function buildPreviewTree(input: {
     node.changeKey = c.key;
   }
 
-  // Merge badges land on the surviving target.
-  for (const [k, badge] of mergeBadgeByPath) {
-    const node = byKey.get(k);
+  // Merge badges land on the surviving target, found by id: after a rename its
+  // path is no longer the one recorded on the change.
+  for (const [id, badge] of mergeBadgeById) {
+    const path = effectivePathById.get(survivorOf(id));
+    const node = path ? byKey.get(pathKey(path)) : undefined;
     if (node && node.badge === null) node.badge = badge;
   }
   for (const c of active) {
     if (c.kind !== 'folder-merge') continue;
-    const node = byKey.get(pathKey(c.targetPath));
+    const path = effectivePathById.get(survivorOf(c.targetId));
+    const node = path ? byKey.get(pathKey(path)) : undefined;
     if (node && node.changeKey === null) node.changeKey = c.key;
   }
 
   function effectivePathOf(original: string[]): string[] {
     if (original.length === 0) return [];
     const match = folders.find((f) => pathKey(f.path) === pathKey(original));
-    const eff = match ? effectivePathById.get(match.id) : undefined;
-    return eff ?? original;
+    if (!match) return original;
+    return effectivePathById.get(survivorOf(match.id)) ?? original;
   }
 
   // Bookmarks, at their post-move locations.

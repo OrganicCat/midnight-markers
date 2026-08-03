@@ -37,17 +37,19 @@ export async function applyChanges(changes: Change[]): Promise<ApplyResult> {
     if (c.kind !== 'folder-merge') continue;
     const source = await collections.get(c.sourceId);
     if (!source) continue;
-    const targetId = await collections.resolvePath(c.targetPath);
+    // By id, not by path: when the merge exists to collapse two folders that
+    // share a path, resolving that path would just find one of them at random.
+    const targetId = (await collections.get(c.targetId))
+      ? c.targetId
+      : await collections.resolvePath(c.targetPath);
     if (targetId === c.sourceId) continue;
 
-    const db = await getDb();
-    for (const child of await db.getAll('collections')) {
-      if (child.parentId === c.sourceId) await collections.update(child.id, { parentId: targetId });
+    try {
+      await collections.absorb(c.sourceId, targetId);
+    } catch (e) {
+      log.warn('resort merge skipped', { source: c.sourceId, target: targetId, error: e });
+      continue;
     }
-    for (const b of await db.getAll('bookmarks')) {
-      if (b.collectionId === c.sourceId) await bookmarks.update(b.id, { collectionId: targetId });
-    }
-    await collections.delete(c.sourceId);
     result.merged++;
   }
 

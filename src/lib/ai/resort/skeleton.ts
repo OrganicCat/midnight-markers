@@ -61,10 +61,21 @@ export function sampleBookmarks(bookmarks: BookmarkRef[], limit: number): Bookma
 }
 
 export function buildSkeletonMessages(input: SkeletonInput): OpenRouterMessage[] {
+  // Two folders at the same path would render as the same line twice. The model
+  // has no way to tell them apart and no way to address one of them, so listing
+  // both only spends tokens; the diff folds duplicates on its own.
+  const seen = new Set<string>();
+  const uniquePaths = input.folders
+    .map((f) => f.path)
+    .filter((p) => {
+      const k = pathKey(p);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+
   const folderLines =
-    input.folders.length > 0
-      ? input.folders.map((f) => renderPath(f.path)).join('\n')
-      : '(none yet)';
+    uniquePaths.length > 0 ? uniquePaths.map((p) => renderPath(p)).join('\n') : '(none yet)';
 
   const sampleLines =
     input.sample.length > 0

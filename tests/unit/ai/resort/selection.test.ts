@@ -21,7 +21,14 @@ describe('affectedPathOf', () => {
   });
   it('uses the source path for a merge', () => {
     expect(
-      affectedPathOf({ kind: 'folder-merge', key: 'm', sourceId: 'x', sourcePath: ['A'], targetPath: ['B'] }),
+      affectedPathOf({
+        kind: 'folder-merge',
+        key: 'm',
+        sourceId: 'x',
+        targetId: 'y',
+        sourcePath: ['A'],
+        targetPath: ['B'],
+      }),
     ).toEqual(['A']);
   });
   it('returns null for a bookmark move', () => {

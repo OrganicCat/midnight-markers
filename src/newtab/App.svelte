@@ -237,6 +237,16 @@
     };
   });
 
+  /** A short message with nothing to undo — a refused drop, a name clash. */
+  let notice = $state<string | null>(null);
+  let noticeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function notify(message: string): void {
+    notice = message;
+    if (noticeTimer) clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => (notice = null), 6000);
+  }
+
   function titleFor(s: Selection): string {
     switch (s.kind) {
       case 'all': return 'All bookmarks';
@@ -248,7 +258,61 @@
 
   async function newCollection() {
     const name = prompt('Collection name?');
-    if (name?.trim()) await colStore.create({ name: name.trim() });
+    const trimmed = name?.trim();
+    if (!trimmed) return;
+    if (await colStore.findSibling(null, trimmed)) {
+      notify(`You already have a top-level collection called "${trimmed}".`);
+      return;
+    }
+    await colStore.create({ name: trimmed });
+  }
+
+  async function renameCollection(id: string) {
+    const cur = collections.find((c) => c.id === id);
+    if (!cur) return;
+    const name = prompt('Rename collection', cur.name)?.trim();
+    if (!name || name === cur.name) return;
+    const clash = await colStore.findSibling(cur.parentId, name);
+    if (clash && clash.id !== id) {
+      notify(`Another collection here is already called "${name}".`);
+      return;
+    }
+    await colStore.update(id, { name });
+  }
+
+  /**
+   * Deleting a folder should not take its contents with it: bookmarks inside
+   * become unfiled and sub-folders move up a level. The prompt says so, because
+   * "Delete" on a folder full of things is otherwise a frightening button.
+   */
+  async function deleteCollection(id: string) {
+    const cur = collections.find((c) => c.id === id);
+    if (!cur) return;
+    const { bookmarks: n, children } = await colStore.countContents(id);
+    const parts: string[] = [];
+    if (n > 0) parts.push(`${n} bookmark${n === 1 ? '' : 's'} will become unfiled`);
+    if (children > 0) parts.push(`${children} sub-folder${children === 1 ? '' : 's'} will move up a level`);
+    const detail = parts.length > 0 ? `\n\n${parts.join('.\n')}.` : '';
+    if (!confirm(`Delete "${cur.name}"?${detail}`)) return;
+    await colStore.remove(id);
+    if (selection.kind === 'collection' && selection.id === id) selection = { kind: 'all' };
+  }
+
+  async function mergeDuplicates(id: string) {
+    const cur = collections.find((c) => c.id === id);
+    if (!cur) return;
+    const dups = await colStore.duplicateSiblings(id);
+    if (dups.length === 0) return;
+    const label = `${dups.length} duplicate${dups.length === 1 ? '' : 's'} of "${cur.name}"`;
+    if (!confirm(`Merge ${label} into this one?\n\nTheir bookmarks and sub-folders move across, then the empty copies are deleted.`)) {
+      return;
+    }
+    let bookmarksMoved = 0;
+    for (const d of dups) {
+      const moved = await colStore.absorb(d.id, id);
+      bookmarksMoved += moved.bookmarks;
+    }
+    notify(`Merged ${label} — ${bookmarksMoved} bookmark${bookmarksMoved === 1 ? '' : 's'} moved.`);
   }
 
   async function openBookmark(b: Bookmark) {
@@ -265,7 +329,15 @@
   }
 
   async function moveCollection(id: string, parentId: string | null, index: number) {
-    await colStore.move(id, parentId, index);
+    const result = await colStore.move(id, parentId, index);
+    if (result.ok) return;
+    // A refused drop used to look identical to a drop that did nothing.
+    const name = collections.find((c) => c.id === id)?.name ?? 'That collection';
+    if (result.reason === 'name-collision') {
+      notify(`There's already a collection called "${name}" there.`);
+    } else if (result.reason === 'cycle') {
+      notify(`"${name}" can't be moved inside itself.`);
+    }
   }
 
   // --- Resort ---------------------------------------------------------------
@@ -344,7 +416,18 @@
 </script>
 
 <div class="min-h-screen flex" style="background: linear-gradient(180deg, #0b0c14 0%, #14172a 100%);">
-  <Sidebar {collections} {tags} {selection} onSelect={(s) => (selection = s)} onMoveBookmarkToCollection={moveBookmarkToCollection} onMoveCollection={moveCollection} onResortCollection={resortCollection} />
+  <Sidebar
+    {collections}
+    {tags}
+    {selection}
+    onSelect={(s) => (selection = s)}
+    onMoveBookmarkToCollection={moveBookmarkToCollection}
+    onMoveCollection={moveCollection}
+    onResortCollection={resortCollection}
+    onRenameCollection={renameCollection}
+    onDeleteCollection={deleteCollection}
+    onMergeDuplicates={mergeDuplicates}
+  />
   <main class="flex-1 px-8 py-6 overflow-auto">
     <Toolbar bind:search bind:view title={titleFor(selection)} count={items.length} onNewCollection={newCollection} onResort={openResort} {canResort} onHelp={() => (helpOpen = true)} />
     <!-- The tour hook only exists when there is something to point at. -->
@@ -371,6 +454,12 @@
   <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-lg border border-white/10 bg-[#12131a] px-4 py-3 shadow-xl">
     <span class="text-xs">{undoToast.message}</span>
     <button class="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20" onclick={undoResort}>Undo</button>
+  </div>
+{/if}
+
+{#if notice}
+  <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 rounded-lg border border-white/10 bg-[#12131a] px-4 py-3 shadow-xl">
+    <span class="text-xs">{notice}</span>
   </div>
 {/if}
 

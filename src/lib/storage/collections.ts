@@ -15,14 +15,54 @@ function nextColor(used: string[]): string {
   return PALETTE[used.length % PALETTE.length]!;
 }
 
+/** Why a `move` was refused. */
+export type MoveResult =
+  | { ok: true }
+  | { ok: false; reason: 'cycle' | 'name-collision' | 'not-found' };
+
+/** Case-insensitive sibling name match within one parent scope. */
+function siblingNamed(all: Collection[], parentId: string | null, name: string): Collection | null {
+  const wanted = name.trim().toLowerCase();
+  return all.find((c) => c.parentId === parentId && c.name.trim().toLowerCase() === wanted) ?? null;
+}
+
+/** Every id in `id`'s subtree, including `id` itself. */
+function subtreeIds(all: Collection[], id: string): Set<string> {
+  const ids = new Set<string>([id]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const c of all) {
+      if (c.parentId && ids.has(c.parentId) && !ids.has(c.id)) {
+        ids.add(c.id);
+        grew = true;
+      }
+    }
+  }
+  return ids;
+}
+
 export const collections = {
+  /**
+   * Creates a collection, or returns the existing one when a sibling already
+   * carries that name.
+   *
+   * Two same-named siblings are indistinguishable in the sidebar and ambiguous
+   * everywhere paths are used as identity — `resolvePath` finds only the first,
+   * and resort's planner cannot tell them apart at all. Collapsing on create is
+   * the cheapest place to stop them appearing. Callers that want to warn the
+   * user first can check `findSibling` before calling.
+   */
   async create(input: { name: string; parentId?: string | null; color?: string }): Promise<Collection> {
     const db = await getDb();
     const all = await db.getAll('collections');
+    const parentId = input.parentId ?? null;
+    const existing = siblingNamed(all, parentId, input.name);
+    if (existing) return existing;
     const row: Collection = {
       id: newId(),
       name: input.name,
-      parentId: input.parentId ?? null,
+      parentId,
       color: input.color ?? nextColor(all.map((c) => c.color)),
       sortOrder: all.length,
       createdAt: Date.now(),
@@ -57,31 +97,25 @@ export const collections = {
    * dragged collection, and is clamped to a valid slot. The whole target group's
    * `sortOrder` is renumbered 0..n so ordering stays dense and stable.
    *
-   * Dropping a collection onto itself or one of its own descendants is a no-op
-   * (it would create a cycle).
+   * Refused, with a reason the caller can surface, when the drop would create a
+   * cycle (onto itself or one of its own descendants) or would land the
+   * collection next to a sibling of the same name.
    */
-  async move(id: string, newParentId: string | null, index: number): Promise<void> {
+  async move(id: string, newParentId: string | null, index: number): Promise<MoveResult> {
     const db = await getDb();
     const dragged = await db.get('collections', id);
-    if (!dragged) throw new Error('collection not found: ' + id);
+    if (!dragged) return { ok: false, reason: 'not-found' };
 
     const all = await db.getAll('collections');
 
     // Reject cycles: the new parent must not be the dragged node or a descendant of it.
-    if (newParentId) {
-      const subtree = new Set<string>([id]);
-      let grew = true;
-      while (grew) {
-        grew = false;
-        for (const c of all) {
-          if (c.parentId && subtree.has(c.parentId) && !subtree.has(c.id)) {
-            subtree.add(c.id);
-            grew = true;
-          }
-        }
-      }
-      if (subtree.has(newParentId)) return;
+    if (newParentId && subtreeIds(all, id).has(newParentId)) {
+      return { ok: false, reason: 'cycle' };
     }
+
+    // Reject a landing that would produce two same-named siblings.
+    const clash = siblingNamed(all, newParentId, dragged.name);
+    if (clash && clash.id !== id) return { ok: false, reason: 'name-collision' };
 
     // Ordered target siblings, excluding the dragged node, then splice it in.
     const siblings = all
@@ -100,6 +134,110 @@ export const collections = {
     }
     await tx.done;
     emit({ type: 'collections:changed' });
+    return { ok: true };
+  },
+
+  /** The sibling of `parentId` already using `name`, if there is one. */
+  async findSibling(parentId: string | null, name: string): Promise<Collection | null> {
+    const db = await getDb();
+    return siblingNamed(await db.getAll('collections'), parentId, name);
+  },
+
+  /**
+   * Other collections sharing this one's parent and name.
+   *
+   * Always empty for a library built by the current code, which refuses to make
+   * duplicates. It is not empty for libraries that predate that guard, where a
+   * drag to the root or a second "+ Collection" could leave two of the same
+   * folder side by side.
+   */
+  async duplicateSiblings(id: string): Promise<Collection[]> {
+    const db = await getDb();
+    const all = await db.getAll('collections');
+    const self = all.find((c) => c.id === id);
+    if (!self) return [];
+    const wanted = self.name.trim().toLowerCase();
+    return all.filter(
+      (c) => c.id !== id && c.parentId === self.parentId && c.name.trim().toLowerCase() === wanted,
+    );
+  },
+
+  /**
+   * Folds `sourceId` into `targetId`: its bookmarks and child folders move
+   * across, then the now-empty source is deleted. Returns what moved.
+   *
+   * Folding a collection into itself or into its own descendant would orphan
+   * the subtree, so both are refused.
+   */
+  async absorb(sourceId: string, targetId: string): Promise<{ bookmarks: number; children: number }> {
+    if (sourceId === targetId) throw new Error('cannot absorb a collection into itself');
+    const db = await getDb();
+    const all = await db.getAll('collections');
+    if (!all.some((c) => c.id === sourceId)) throw new Error('collection not found: ' + sourceId);
+    if (!all.some((c) => c.id === targetId)) throw new Error('collection not found: ' + targetId);
+    if (subtreeIds(all, sourceId).has(targetId)) {
+      throw new Error('cannot absorb a collection into its own descendant');
+    }
+
+    let children = 0;
+    for (const c of all) {
+      if (c.parentId !== sourceId) continue;
+      await db.put('collections', { ...c, parentId: targetId });
+      children++;
+    }
+
+    let moved = 0;
+    for (const b of await db.getAll('bookmarks')) {
+      if (b.collectionId !== sourceId) continue;
+      await db.put('bookmarks', { ...b, collectionId: targetId, updatedAt: Date.now() });
+      moved++;
+    }
+
+    await db.delete('collections', sourceId);
+    emit({ type: 'collections:changed' });
+    if (moved > 0) emit({ type: 'bookmarks:changed' });
+    return { bookmarks: moved, children };
+  },
+
+  /** Direct bookmarks and direct child folders, for a "this will affect N things" prompt. */
+  async countContents(id: string): Promise<{ bookmarks: number; children: number }> {
+    const db = await getDb();
+    const children = (await db.getAll('collections')).filter((c) => c.parentId === id).length;
+    const bookmarks = (await db.getAll('bookmarks')).filter((b) => b.collectionId === id).length;
+    return { bookmarks, children };
+  },
+
+  /**
+   * Deletes a collection without taking its contents down with it: bookmarks
+   * inside become unfiled, and child folders move up to take its place. Returns
+   * how much was set loose.
+   *
+   * `delete` is the raw row removal and assumes the caller has already emptied
+   * the collection; this is what a user pressing Delete should get.
+   */
+  async remove(id: string): Promise<{ bookmarks: number; children: number }> {
+    const db = await getDb();
+    const self = await db.get('collections', id);
+    if (!self) return { bookmarks: 0, children: 0 };
+
+    let children = 0;
+    for (const c of await db.getAll('collections')) {
+      if (c.parentId !== id) continue;
+      await db.put('collections', { ...c, parentId: self.parentId });
+      children++;
+    }
+
+    let unfiled = 0;
+    for (const b of await db.getAll('bookmarks')) {
+      if (b.collectionId !== id) continue;
+      await db.put('bookmarks', { ...b, collectionId: null, updatedAt: Date.now() });
+      unfiled++;
+    }
+
+    await db.delete('collections', id);
+    emit({ type: 'collections:changed' });
+    if (unfiled > 0) emit({ type: 'bookmarks:changed' });
+    return { bookmarks: unfiled, children };
   },
 
   async list(): Promise<Collection[]> {

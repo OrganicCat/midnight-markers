@@ -1,11 +1,13 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { describe, it, expect, beforeEach } from 'vitest';
-import { _resetDbForTests } from '$lib/storage/db';
+import { _resetDbForTests, getDb } from '$lib/storage/db';
 import { collections } from '$lib/storage/collections';
 import { bookmarks } from '$lib/storage/bookmarks';
 import { snapshots } from '$lib/storage/snapshot';
 import { applyChanges } from '$lib/ai/resort/apply';
+import { planToChanges } from '$lib/ai/resort/diff';
+import { gatherScope } from '$lib/ai/resort/scope';
 
 beforeEach(() => {
   globalThis.indexedDB = new IDBFactory();
@@ -52,6 +54,7 @@ describe('applyChanges', () => {
         kind: 'folder-merge',
         key: 'merge:1',
         sourceId: source.id,
+        targetId: target.id,
         sourcePath: ['Web Dev'],
         targetPath: ['Dev'],
       },
@@ -138,5 +141,39 @@ describe('applyChanges', () => {
     expect(after).toEqual(before);
     expect((await bookmarks.get(b1.id))!.collectionId).toBe(old.id);
     expect((await bookmarks.get(b2.id))!.collectionId).toBe(old.id);
+  });
+
+  it('collapses two same-named root collections end to end', async () => {
+    // The user's case: two top-level "Games" folders, each holding bookmarks.
+    const keep = await collections.create({ name: 'Games' });
+    const db = await getDb();
+    // Past create()'s guard, the way an older build could leave things.
+    await db.put('collections', { ...keep, id: 'dup', name: 'Games', sortOrder: 1 });
+    const a = await makeBookmark(keep.id, 'a');
+    const b = await makeBookmark('dup', 'b');
+
+    const { folders, bookmarks: refs } = await gatherScope({ kind: 'all' });
+    expect(folders).toHaveLength(2);
+
+    const changes = planToChanges({
+      folders,
+      bookmarks: refs,
+      plan: {
+        skeleton: { folders: [['Games']], renames: [], merges: [] },
+        filings: [
+          { id: a.id, path: ['Games'] },
+          { id: b.id, path: ['Games'] },
+        ],
+        unplannedIds: [],
+      },
+    });
+
+    const result = await applyChanges(changes);
+
+    expect(result.merged).toBe(1);
+    const left = await collections.list();
+    expect(left.map((c) => c.name)).toEqual(['Games']);
+    expect((await bookmarks.get(a.id))!.collectionId).toBe(keep.id);
+    expect((await bookmarks.get(b.id))!.collectionId).toBe(keep.id);
   });
 });
