@@ -4,13 +4,23 @@ import { svelteTesting } from '@testing-library/svelte/vite';
 import webExtension, { readJsonFile } from 'vite-plugin-web-extension';
 import path from 'node:path';
 
+/**
+ * Which browser this build targets. It drives two things: the `{{chrome}}.` and
+ * `{{firefox}}.` prefixed keys in src/manifest.json, which the plugin resolves
+ * down to one manifest per browser, and where the build lands.
+ *
+ * Chrome keeps `dist/` so the e2e tests and the "load unpacked" instructions
+ * don't have to care that a second target exists.
+ */
+const target = process.env.TARGET ?? 'chrome';
+
 export default defineConfig({
   plugins: [
     svelte(),
     svelteTesting(),
     webExtension({
       manifest: () => readJsonFile('src/manifest.json'),
-      browser: process.env.TARGET ?? 'chrome',
+      browser: target,
     }),
   ],
   resolve: {
@@ -18,6 +28,8 @@ export default defineConfig({
   },
   build: {
     target: 'es2022',
+    outDir: target === 'firefox' ? 'dist-firefox' : 'dist',
+    emptyOutDir: true,
     /**
      * Sourcemaps are on for day-to-day builds and off for release builds.
      *

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:firefox": "TARGET=firefox vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
@@ -14,6 +15,8 @@
     "lint": "eslint src tests",
     "format": "prettier --write src tests",
     "build:release": "MM_RELEASE=1 vite build",
+    "package:chrome": "node scripts/package.mjs chrome",
+    "package:firefox": "node scripts/package.mjs firefox",
     "package": "node scripts/package.mjs",
     "store-assets": "node scripts/store-assets.mjs"
   },

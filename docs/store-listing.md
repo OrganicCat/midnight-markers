@@ -1,19 +1,24 @@
-# Chrome Web Store submission
+# Store submission
 
-Everything the dashboard asks for. Paste-ready text for the two longest
-fields lives alongside this file:
+Everything the Chrome Web Store dashboard asks for, plus the extra steps
+addons.mozilla.org needs. Most of it — the description, the permission
+justifications, the privacy answers — is the same text for both.
+
+Everything below applies to both stores unless a section says otherwise.
+Paste-ready text for the two longest fields lives alongside this file:
 
 - [`STORE-LISTING.txt`](STORE-LISTING.txt) — the item description
 - [`STORE-PERMISSIONS.txt`](STORE-PERMISSIONS.txt) — every permission
   justification and the remote-code answer, each inside the 1000-char limit
 
-Build the upload and the images with:
+Build the uploads and the images with:
 
-    npm run package        # release/midnight-markers-<version>.zip
+    npm run package        # release/midnight-markers-<version>-{chrome,firefox,source}.zip
     npm run store-assets   # release/store/*.png
 
-The store takes a **zip**, not a crx — Google signs the crx itself. Crx is
-only for self-hosted or enterprise-deployed extensions.
+Both stores take a **zip**. Google signs the crx and Mozilla signs the xpi on
+their own side, so you never upload a signed package. Crx is only for
+self-hosted or enterprise-deployed extensions.
 
 ## Listing basics
 
@@ -196,20 +201,102 @@ state of every asset.
   non-trader, but the determination is yours to make.
 - **2-Step Verification** must be enabled on the account.
 
+## Firefox (addons.mozilla.org)
+
+The listing text, permission justifications and privacy answers above are all
+reusable. These are the parts AMO handles differently.
+
+### What the Firefox build changes
+
+`npm run package` produces the Firefox zip from the same source, with three
+manifest differences resolved from the `{{firefox}}.`-prefixed keys in
+`src/manifest.json`:
+
+- **Background.** Firefox has never shipped extension service workers
+  ([bug 1573659](https://bugzilla.mozilla.org/show_bug.cgi?id=1573659)), so the
+  Firefox build declares `background.scripts` — an event page — where the
+  Chrome build declares `background.service_worker`. Same file, same code.
+- **Add-on ID.** `browser_specific_settings.gecko.id` is
+  `midnight-markers@organiccat.github.io`. AMO requires a stable ID to publish
+  under, and it must never change once the first version is accepted.
+- **Minimum version.** `strict_min_version` is `140.0`, which is what the data
+  collection key below requires.
+
+The extension code calls `browser.*` when it exists and falls back to
+`chrome.*` (see `src/lib/ext.ts`). Firefox's `chrome.*` namespace is a
+callback-based porting shim, so awaiting it would silently yield `undefined`.
+
+### Data collection permissions
+
+Since 3 November 2025, every new Firefox extension must declare what personal
+data it collects in the manifest. Midnight Markers declares:
+
+    "data_collection_permissions": {
+      "required": ["none"],
+      "optional": ["websiteContent", "bookmarksInfo"]
+    }
+
+`required: ["none"]` is accurate because the extension transmits nothing as
+part of its basic function — bookmarks live in local IndexedDB. The optional
+entries cover the AI features, which are off by default and send page content
+and the user's tag and collection names to the provider the user chose, using
+the user's own API key. This matches [`PRIVACY.md`](../PRIVACY.md); if one
+changes, change the other.
+
+### Source code submission
+
+AMO requires the original source for any extension built with a bundler, and
+will reject a submission without it. `npm run package` writes
+`release/midnight-markers-<version>-source.zip` from `git archive HEAD` for
+exactly this. Paste these build instructions into the source code field:
+
+    Environment: Linux or macOS, Node.js 24.x, npm 11.x
+    Build:
+      npm ci
+      npm run package firefox
+    Output: dist-firefox/ — the contents of the submitted zip.
+
+Note that the source archive contains only committed files, so commit before
+packaging or the reviewer's rebuild will not match.
+
+### Before uploading
+
+Run AMO's own validator against the built extension:
+
+    npx web-ext lint --source-dir dist-firefox
+
+It should report zero errors. Two warnings are expected and do not block
+review: an `innerHTML` assignment inside the bundled Svelte runtime, and a
+note that the Android minimum version predates the data collection key —
+this extension replaces the new tab page and is not aimed at Firefox for
+Android.
+
+### Host permissions
+
+Since Firefox 127, host permissions listed in the manifest are shown in the
+install prompt and granted on installation, as they are in Chrome. Users can
+still revoke them afterwards, so the AI code paths need to fail gracefully
+when a request is blocked — which is the same handling they already have for
+an invalid key or a network error.
+
 ## Pre-submission checklist
 
 - [x] Privacy policy live at a public URL, and that URL entered in the dashboard
 - [x] Screenshots, promo tile and marquee tile produced
 - [x] Store icon generated with the padding the guidelines require
 - [x] `version` in `src/manifest.json` matches `package.json`
-- [x] Packaged with `npm run package`, which zips the **contents** of `dist/`
-      so `manifest.json` sits at the zip root — not the `dist` folder itself
+- [x] Packaged with `npm run package`, which zips the **contents** of each
+      build directory so `manifest.json` sits at the zip root — not the folder
+      itself
 - [ ] Reviewer test key created (low spending cap) and pasted into Test Instructions
 - [ ] Developer account: 2-Step Verification enabled
 - [ ] Trader / Non-Trader declaration completed
-- [ ] Extract the zip to a clean folder and load *that* as an unpacked
-      extension in both Chrome and Brave — this tests the exact bytes being
-      uploaded, which a working `dist/` does not
+- [ ] Extract each zip to a clean folder and load *that* as an unpacked
+      extension in Chrome, Brave and Firefox — this tests the exact bytes being
+      uploaded, which a working build directory does not
+- [ ] `npx web-ext lint --source-dir dist-firefox` reports zero errors
+- [ ] Everything committed before packaging, so the AMO source archive matches
+- [ ] AMO: source zip uploaded with the build instructions above
 
 Expect review to take anywhere from a few hours to a couple of weeks. The
 `bookmarks` permission and the AI host permissions are the parts most likely

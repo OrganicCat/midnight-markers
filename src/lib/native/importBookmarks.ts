@@ -1,5 +1,6 @@
 import { bookmarks } from '$lib/storage/bookmarks';
 import { collections as colStore } from '$lib/storage/collections';
+import { ext } from '$lib/ext';
 
 export type ChromeBookmarkNode = {
   id: string;
@@ -46,7 +47,7 @@ export type ImportProgress = { total: number; done: number };
 export async function importNativeBookmarks(
   onProgress?: (p: ImportProgress) => void,
 ): Promise<{ imported: number; skipped: number }> {
-  const tree = await chrome.bookmarks.getTree();
+  const tree = await ext.bookmarks.getTree();
   const flat = flattenBookmarkTree(tree as ChromeBookmarkNode[]);
 
   const folderToCollection = new Map<string, string>(); // joined path -> collectionId

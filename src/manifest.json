@@ -1,7 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Midnight Markers",
-  "description": "A dark, polished bookmark library for Brave and Chrome.",
+  "{{chrome}}.description": "A dark, polished bookmark library for Brave and Chrome.",
+  "{{firefox}}.description": "A dark, polished bookmark library for Firefox.",
   "version": "0.2.0",
   "icons": {
     "16": "icons/icon-16.png",
@@ -20,9 +21,23 @@
     "page": "src/settings/settings.html",
     "open_in_tab": true
   },
-  "background": {
+  "{{chrome}}.background": {
     "service_worker": "src/background/service-worker.ts",
     "type": "module"
+  },
+  "{{firefox}}.background": {
+    "scripts": ["src/background/service-worker.ts"],
+    "type": "module"
+  },
+  "{{firefox}}.browser_specific_settings": {
+    "gecko": {
+      "id": "midnight-markers@organiccat.github.io",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": ["none"],
+        "optional": ["websiteContent", "bookmarksInfo"]
+      }
+    }
   },
   "permissions": ["storage", "activeTab", "scripting", "bookmarks", "alarms"],
   "host_permissions": ["https://openrouter.ai/*", "https://api.anthropic.com/*"]

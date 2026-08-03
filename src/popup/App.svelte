@@ -16,8 +16,12 @@
   import CollectionPicker from './CollectionPicker.svelte';
   import AIBanner from './AIBanner.svelte';
   import AISuggestions from './AISuggestions.svelte';
+  import { ext } from '$lib/ext';
 
   const AUTO_TAG_COUNT = 2;
+
+  /** Pages the browser won't let an extension script into. */
+  const INTERNAL_SCHEMES = ['chrome://', 'brave://', 'edge://', 'about:', 'moz-extension://', 'chrome-extension://', 'view-source:'];
 
   let bookmark = $state<Bookmark | null>(null);
   let error = $state<string | null>(null);
@@ -115,12 +119,12 @@
   onMount(async () => {
     [allTags, allCollections] = await Promise.all([tagsStore.list(), colStore.list()]);
     try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab?.id || !tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('brave://')) {
+      const [tab] = await ext.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id || !tab.url || INTERNAL_SCHEMES.some((s) => tab.url!.startsWith(s))) {
         error = "Can't save this page (browser internal).";
         return;
       }
-      const [result] = await chrome.scripting.executeScript({
+      const [result] = await ext.scripting.executeScript({
         target: { tabId: tab.id },
         func: extractFromDocument,
       });
