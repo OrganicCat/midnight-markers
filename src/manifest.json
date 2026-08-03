@@ -1,5 +1,5 @@
 {
-  "manifest_version": 4,
+  "manifest_version": 3,
   "name": "Midnight Markers",
   "{{chrome}}.description": "A dark, polished bookmark library for Brave and Chrome.",
   "{{firefox}}.description": "A dark, polished bookmark library for Firefox.",
