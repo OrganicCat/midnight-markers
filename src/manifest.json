@@ -3,7 +3,7 @@
   "name": "Midnight Markers",
   "{{chrome}}.description": "A dark, polished bookmark library for Brave and Chrome.",
   "{{firefox}}.description": "A dark, polished bookmark library for Firefox.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
