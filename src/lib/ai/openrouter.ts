@@ -22,6 +22,8 @@ export type ChatCompleteArgs = {
   model: string;
   messages: ChatMessage[];
   signal?: AbortSignal;
+  /** Ceiling on the response, in tokens. Omitted, the model's default applies. */
+  maxTokens?: number;
 };
 
 export async function chatComplete(args: ChatCompleteArgs): Promise<unknown> {
@@ -41,6 +43,7 @@ export async function chatComplete(args: ChatCompleteArgs): Promise<unknown> {
       messages: args.messages,
       response_format: { type: 'json_object' },
       temperature: 0.2,
+      ...(args.maxTokens !== undefined ? { max_tokens: args.maxTokens } : {}),
     }),
     ...(args.signal ? { signal: args.signal } : {}),
   });

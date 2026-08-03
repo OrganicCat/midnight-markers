@@ -1,7 +1,32 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { chunk, runResort, resortReasonMessage, MAX_BOOKMARKS } from '$lib/ai/resort/planner';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import {
+  chunk,
+  runResort,
+  resortReasonMessage,
+  MAX_BOOKMARKS,
+  BATCH_SIZE,
+} from '$lib/ai/resort/planner';
+import type { LastAIError } from '$lib/log';
 import type { BookmarkRef, FolderNode, ResortProgress } from '$lib/ai/resort/types';
 
+/**
+ * Captures what the planner writes to the settings diagnostics pane. The real
+ * `recordAIError` needs extension storage, which does not exist under vitest.
+ */
+const recorded: LastAIError[] = [];
+vi.mock('$lib/log', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('$lib/log')>();
+  return {
+    ...actual,
+    recordAIError: async (err: LastAIError) => {
+      recorded.push(err);
+    },
+  };
+});
+
+beforeEach(() => {
+  recorded.length = 0;
+});
 afterEach(() => vi.unstubAllGlobals());
 
 function folder(id: string, path: string[]): FolderNode {
@@ -138,6 +163,49 @@ describe('runResort', () => {
     await runResort({ ...baseArgs([bm('b1')]), onProgress: (p) => seen.push(p) });
     expect(seen[0]).toEqual({ phase: 'skeleton' });
     expect(seen.at(-1)).toEqual({ phase: 'filing', done: 1, total: 1 });
+  });
+
+  it('records the underlying provider error when pass 1 fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('nope', { status: 401 })));
+    await runResort(baseArgs([bm('b1')]));
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0]!.status).toBe(401);
+    expect(recorded[0]!.model).toBe('anthropic/claude-haiku-4.5');
+  });
+
+  it('records the underlying provider error when a filing batch gives up', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(reply({ folders: [['Dev']] }))
+      // A fresh Response per attempt: a body can only be read once, and the
+      // retry would otherwise see an already-drained stream.
+      .mockImplementation(() => Promise.resolve(new Response('boom', { status: 500 })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const r = await runResort(baseArgs([bm('b1')]));
+    expect(r.ok).toBe(false);
+    // Without this the settings diagnostics pane stays empty and the only clue
+    // the user gets is "1 of 1 request failed".
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0]!.status).toBe(500);
+    expect(recorded[0]!.body).toContain('boom');
+  });
+
+  it('asks for enough output tokens to hold a full batch of filings', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(reply({ folders: [['Dev']] }))
+      .mockResolvedValue(reply({ filings: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const batch = Array.from({ length: BATCH_SIZE }, (_, i) => bm(`b${i}`));
+    await runResort(baseArgs(batch));
+
+    // A ULID id alone costs ~10 tokens, so 100 filings will not fit in the
+    // 2048-token default the single-bookmark prompts were sized for.
+    const init = fetchMock.mock.calls[1]![1] as RequestInit;
+    const body = JSON.parse(init.body as string) as { max_tokens?: number };
+    expect(body.max_tokens).toBeGreaterThan(3000);
   });
 
   it('reports a timeout when the caller aborts', async () => {

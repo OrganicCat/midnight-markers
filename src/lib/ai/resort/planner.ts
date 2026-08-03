@@ -1,4 +1,4 @@
-import { log } from '$lib/log';
+import { log, recordAIError } from '$lib/log';
 import { getProvider, isProviderError, type ChatProvider } from '$lib/ai/provider';
 import type { SuggestFailReason } from '$lib/ai/suggest';
 import { buildSkeletonMessages, sampleBookmarks } from './skeleton';
@@ -16,6 +16,22 @@ export const BATCH_SIZE = 100;
 export const CONCURRENCY = 2;
 export const SAMPLE_SIZE = 200;
 export const MAX_BOOKMARKS = 5000;
+
+/**
+ * Output-token budget for one filing entry, plus fixed overhead for the
+ * wrapper object.
+ *
+ * An entry looks like {"id":"01J8ZQ…","path":["Dev","Rust"]}. The id is a
+ * 26-character ULID, which tokenizes at roughly one token per two characters
+ * because it is random, so the id alone costs ~10-13 tokens before the folder
+ * path and punctuation. 40 is comfortable headroom for a deep path.
+ */
+const TOKENS_PER_FILING = 40;
+const FILING_TOKEN_OVERHEAD = 256;
+
+export function filingMaxTokens(batchSize: number): number {
+  return FILING_TOKEN_OVERHEAD + batchSize * TOKENS_PER_FILING;
+}
 
 export type ResortFailReason =
   | SuggestFailReason
@@ -81,6 +97,25 @@ export function resortReasonMessage(r: ResortFailReason): string {
   }
 }
 
+/**
+ * Files a failure into the settings diagnostics pane.
+ *
+ * Resort used to log its failures to the console and nothing else, so a run
+ * that died mid-flight told the user "1 of 1 request failed" and left the
+ * diagnostics pane empty — the HTTP status and response body, the only things
+ * that explain the failure, went nowhere they would ever look.
+ */
+function record(reason: ResortFailReason, model: string, url: string): void {
+  void recordAIError({
+    ts: Date.now(),
+    message: resortReasonMessage(reason),
+    ...('status' in reason ? { status: reason.status } : {}),
+    ...('body' in reason ? { body: reason.body } : {}),
+    model,
+    url,
+  });
+}
+
 /** Runs `tasks` with at most `limit` in flight, preserving result order. */
 async function pooled<T>(tasks: Array<() => Promise<T>>, limit: number): Promise<T[]> {
   const results = new Array<T>(tasks.length);
@@ -121,6 +156,7 @@ export async function runResort(args: ResortRunArgs): Promise<ResortRunResult> {
   } catch (e) {
     const reason = classifyError(e, provider.label);
     log.error('resort skeleton failed', reason);
+    record(reason, args.model, provider.endpointUrl);
     return { ok: false, reason };
   }
 
@@ -145,16 +181,16 @@ export async function runResort(args: ResortRunArgs): Promise<ResortRunResult> {
           model: args.model,
           messages,
           signal: args.signal,
+          maxTokens: filingMaxTokens(batch.length),
         });
         return parseFilings(raw, skeleton.folders, ids);
       } catch (e) {
         if (args.signal.aborted) throw e;
-        log.warn('resort filing batch failed', {
-          attempt,
-          reason: classifyError(e, provider.label),
-        });
+        const reason = classifyError(e, provider.label);
+        log.warn('resort filing batch failed', { attempt, reason });
         if (attempt === 1) {
           failedBatches++;
+          record(reason, args.model, provider.endpointUrl);
           return [];
         }
       }
@@ -176,6 +212,7 @@ export async function runResort(args: ResortRunArgs): Promise<ResortRunResult> {
   } catch (e) {
     const reason = classifyError(e, provider.label);
     log.error('resort filing aborted', reason);
+    record(reason, args.model, provider.endpointUrl);
     return { ok: false, reason };
   }
 

@@ -6,12 +6,17 @@ import type { ChatMessage } from './types';
 export const ANTHROPIC_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 
 /**
- * Ceiling on the response. Every prompt in this extension asks for one small
- * JSON object (a title, a handful of tags, a collection path), so this is
- * generous headroom rather than a real constraint — but the Messages API
- * requires the field, unlike the OpenRouter path where it is optional.
+ * Ceiling on the response when the caller does not set one. Most prompts here
+ * ask for a single small JSON object (a title, a handful of tags, a collection
+ * path), so this is generous headroom for them — but the Messages API requires
+ * the field, unlike the OpenRouter path where it is optional.
+ *
+ * Callers whose reply grows with the input must pass `maxTokens`. Resort's
+ * filing pass is the one that does: it asks for one entry per bookmark, and a
+ * batch of 100 blows past 2048 tokens, which truncates the JSON mid-object and
+ * surfaces as a bogus "model output was not valid JSON" error.
  */
-const MAX_TOKENS = 2048;
+const DEFAULT_MAX_TOKENS = 2048;
 
 export class AnthropicError extends Error {
   constructor(
@@ -29,6 +34,8 @@ export type AnthropicChatArgs = {
   model: string;
   messages: ChatMessage[];
   signal?: AbortSignal;
+  /** Ceiling on the response, in tokens. Defaults to DEFAULT_MAX_TOKENS. */
+  maxTokens?: number;
   /**
    * Injection seam for tests, which assert on the real outbound request rather
    * than on a mocked SDK. Production omits it and the SDK uses global fetch.
@@ -94,7 +101,7 @@ export async function chatComplete(args: AnthropicChatArgs): Promise<unknown> {
     res = await (await client(args.apiKey, args.fetch)).messages.create(
       {
         model: args.model,
-        max_tokens: MAX_TOKENS,
+        max_tokens: args.maxTokens ?? DEFAULT_MAX_TOKENS,
         ...(system ? { system } : {}),
         messages: rest.map((m) => ({
           role: m.role as 'user' | 'assistant',
@@ -140,6 +147,18 @@ export async function chatComplete(args: AnthropicChatArgs): Promise<unknown> {
     log.debug('anthropic chatComplete parsed', parsed);
     return parsed;
   } catch {
+    // A reply cut off at the token ceiling is never valid JSON, and reporting
+    // it as bad model output sends anyone debugging it in the wrong direction.
+    if (res.stop_reason === 'max_tokens') {
+      log.error('Anthropic response hit the max_tokens ceiling', {
+        maxTokens: args.maxTokens ?? DEFAULT_MAX_TOKENS,
+      });
+      throw new AnthropicError(
+        `Response was cut off at the ${args.maxTokens ?? DEFAULT_MAX_TOKENS}-token limit before it was valid JSON`,
+        undefined,
+        content,
+      );
+    }
     log.error('Model output was not valid JSON even after fence-stripping', {
       content: content.slice(0, 500),
     });

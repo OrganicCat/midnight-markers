@@ -10,6 +10,12 @@ export type ChatCompleteArgs = {
   model: string;
   messages: ChatMessage[];
   signal?: AbortSignal;
+  /**
+   * Ceiling on the response, in tokens. Omit for the small single-object
+   * replies most prompts ask for; set it when the reply scales with the input,
+   * as resort's filing pass does — one entry per bookmark in the batch.
+   */
+  maxTokens?: number;
 };
 
 export interface ChatProvider {
