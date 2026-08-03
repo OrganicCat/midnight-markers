@@ -86,7 +86,7 @@ describe('runResort', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(reply({ folders: [['Dev', 'Rust']], renames: [], merges: [] }))
-      .mockResolvedValueOnce(reply({ filings: [{ id: 'b1', path: ['Dev', 'Rust'] }] }));
+      .mockResolvedValueOnce(reply({ f: [[0, 0]] }));
     vi.stubGlobal('fetch', fetchMock);
 
     const r = await runResort(baseArgs([bm('b1')]));
@@ -121,7 +121,7 @@ describe('runResort', () => {
       .fn()
       .mockResolvedValueOnce(reply({ folders: [['Dev']] }))
       .mockResolvedValueOnce(new Response('boom', { status: 500 }))
-      .mockResolvedValueOnce(reply({ filings: [{ id: 'b1', path: ['Dev'] }] }));
+      .mockResolvedValueOnce(reply({ f: [[0, 0]] }));
     vi.stubGlobal('fetch', fetchMock);
 
     const r = await runResort(baseArgs([bm('b1')]));
@@ -146,7 +146,7 @@ describe('runResort', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(reply({ folders: [['Dev']] }))
-      .mockResolvedValue(reply({ filings: [{ id: 'b1', path: ['Nowhere'] }] }));
+      .mockResolvedValue(reply({ f: [[0, 9]] }));
     vi.stubGlobal('fetch', fetchMock);
 
     const r = await runResort(baseArgs([bm('b1')]));
@@ -158,7 +158,7 @@ describe('runResort', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(reply({ folders: [['Dev']] }))
-      .mockResolvedValueOnce(reply({ filings: [{ id: 'b1', path: ['Dev'] }] }));
+      .mockResolvedValueOnce(reply({ f: [[0, 0]] }));
     vi.stubGlobal('fetch', fetchMock);
 
     const r = await runResort(baseArgs([bm('b1'), bm('b2')]));
@@ -170,7 +170,7 @@ describe('runResort', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(reply({ folders: [['Dev']] }))
-      .mockResolvedValueOnce(reply({ filings: [{ id: 'b1', path: ['Dev'] }] }));
+      .mockResolvedValueOnce(reply({ f: [[0, 0]] }));
     vi.stubGlobal('fetch', fetchMock);
 
     const seen: ResortProgress[] = [];
@@ -209,7 +209,7 @@ describe('runResort', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(reply({ folders: [['Dev']] }))
-      .mockResolvedValue(reply({ filings: [] }));
+      .mockResolvedValue(reply({ f: [] }));
     vi.stubGlobal('fetch', fetchMock);
 
     const batch = Array.from({ length: BATCH_SIZE }, (_, i) => bm(`b${i}`));

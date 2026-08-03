@@ -5,23 +5,36 @@ import {
   parseSkeleton,
   parseFilings,
 } from '$lib/ai/resort/filing';
+import type { BookmarkRef } from '$lib/ai/resort/types';
 
 describe('buildFilingMessages', () => {
-  it('lists the full skeleton and the batch', () => {
+  it('numbers the skeleton folders and the batch', () => {
     const msgs = buildFilingMessages({
       skeleton: [['Dev', 'Rust'], ['Cooking']],
       batch: [{ id: 'b1', title: 'Borrow checker', domain: 'rust-lang.org', path: ['Old'] }],
     });
     expect(msgs[0]!.content).toBe(FILING_SYSTEM_PROMPT);
-    expect(msgs[1]!.content).toContain('Dev > Rust');
-    expect(msgs[1]!.content).toContain('Cooking');
-    expect(msgs[1]!.content).toContain('b1 — Borrow checker — rust-lang.org — Old');
+    expect(msgs[1]!.content).toContain('0. Dev > Rust');
+    expect(msgs[1]!.content).toContain('1. Cooking');
+    expect(msgs[1]!.content).toContain('0 — Borrow checker — rust-lang.org — Old');
   });
 
-  it('forbids inventing folders in the system prompt', () => {
+  it('keeps the ULID out of the prompt entirely', () => {
+    const msgs = buildFilingMessages({
+      skeleton: [['Cooking']],
+      batch: [
+        { id: '01J8ZQK3M5N7P9R2T4V6X8Y0AB', title: 'Bread', domain: 'x.com', path: [] },
+      ],
+    });
+    // The id costs ~13 tokens per bookmark and the model never needs it —
+    // it answers with the batch index instead.
+    expect(msgs[1]!.content).not.toContain('01J8ZQK3M5N7P9R2T4V6X8Y0AB');
+  });
+
+  it('asks for index pairs in the system prompt', () => {
     expect(FILING_SYSTEM_PROMPT).toMatch(/only.*folders listed|do not invent/i);
-    expect(FILING_SYSTEM_PROMPT).toContain('"id"');
-    expect(FILING_SYSTEM_PROMPT).toContain('"path"');
+    expect(FILING_SYSTEM_PROMPT).toContain('"f"');
+    expect(FILING_SYSTEM_PROMPT).not.toContain('"id"');
   });
 });
 
@@ -65,41 +78,66 @@ describe('parseSkeleton', () => {
 
 describe('parseFilings', () => {
   const allowed = [['Dev', 'Rust'], ['Cooking']];
-  const ids = new Set(['b1', 'b2']);
+  const batch: BookmarkRef[] = [
+    { id: 'b1', title: 'One', domain: 'a.com', path: [] },
+    { id: 'b2', title: 'Two', domain: 'b.com', path: [] },
+  ];
 
-  it('accepts filings whose path is in the skeleton', () => {
-    expect(parseFilings([{ id: 'b1', path: ['Dev', 'Rust'] }], allowed, ids)).toEqual([
+  it('resolves index pairs back to real ids and skeleton paths', () => {
+    expect(parseFilings({ f: [[0, 0], [1, 1]] }, allowed, batch)).toEqual([
       { id: 'b1', path: ['Dev', 'Rust'] },
+      { id: 'b2', path: ['Cooking'] },
     ]);
   });
 
-  it('matches skeleton paths case-insensitively but returns the skeleton casing', () => {
-    expect(parseFilings([{ id: 'b1', path: ['dev', 'RUST'] }], allowed, ids)).toEqual([
-      { id: 'b1', path: ['Dev', 'Rust'] },
+  it('returns the skeleton array itself, not a copy of the model output', () => {
+    const out = parseFilings({ f: [[0, 0]] }, allowed, batch);
+    expect(out[0]!.path).toBe(allowed[0]);
+  });
+
+  it('rejects out-of-range indices on either side', () => {
+    expect(parseFilings({ f: [[9, 0]] }, allowed, batch)).toEqual([]);
+    expect(parseFilings({ f: [[0, 9]] }, allowed, batch)).toEqual([]);
+    expect(parseFilings({ f: [[-1, 0]] }, allowed, batch)).toEqual([]);
+  });
+
+  it('rejects non-integer indices', () => {
+    expect(parseFilings({ f: [[0.5, 0]] }, allowed, batch)).toEqual([]);
+    expect(parseFilings({ f: [['0', '1']] }, allowed, batch)).toEqual([]);
+  });
+
+  it('keeps the first filing when a bookmark is named twice', () => {
+    const out = parseFilings({ f: [[0, 1], [0, 0]] }, allowed, batch);
+    expect(out).toEqual([{ id: 'b1', path: ['Cooking'] }]);
+  });
+
+  it('accepts a bare array with no envelope', () => {
+    expect(parseFilings([[0, 1]], allowed, batch)).toEqual([{ id: 'b1', path: ['Cooking'] }]);
+  });
+
+  it('accepts filings / results / bookmarks as the envelope key', () => {
+    expect(parseFilings({ filings: [[0, 1]] }, allowed, batch)).toHaveLength(1);
+    expect(parseFilings({ results: [[0, 1]] }, allowed, batch)).toHaveLength(1);
+    expect(parseFilings({ bookmarks: [[0, 1]] }, allowed, batch)).toHaveLength(1);
+  });
+
+  it('accepts object entries as well as tuples', () => {
+    expect(parseFilings({ f: [{ b: 0, f: 1 }] }, allowed, batch)).toEqual([
+      { id: 'b1', path: ['Cooking'] },
     ]);
   });
 
-  it('rejects paths not in the skeleton', () => {
-    expect(parseFilings([{ id: 'b1', path: ['Invented'] }], allowed, ids)).toEqual([]);
-  });
-
-  it('rejects unknown ids and duplicate ids', () => {
-    expect(parseFilings([{ id: 'nope', path: ['Cooking'] }], allowed, ids)).toEqual([]);
-    const dupes = parseFilings(
-      [{ id: 'b1', path: ['Cooking'] }, { id: 'b1', path: ['Dev', 'Rust'] }],
-      allowed,
-      ids,
-    );
-    expect(dupes).toHaveLength(1);
-  });
-
-  it('unwraps a { filings: [...] } or { results: [...] } envelope', () => {
-    expect(parseFilings({ filings: [{ id: 'b2', path: ['Cooking'] }] }, allowed, ids)).toHaveLength(1);
-    expect(parseFilings({ results: [{ id: 'b2', path: ['Cooking'] }] }, allowed, ids)).toHaveLength(1);
+  it('drops bad entries without losing the rest of the batch', () => {
+    const out = parseFilings({ f: [[0, 0], 'junk', [99, 0], [1, 1]] }, allowed, batch);
+    expect(out).toEqual([
+      { id: 'b1', path: ['Dev', 'Rust'] },
+      { id: 'b2', path: ['Cooking'] },
+    ]);
   });
 
   it('returns empty for junk', () => {
-    expect(parseFilings(null, allowed, ids)).toEqual([]);
-    expect(parseFilings([{ id: 5, path: 'x' }], allowed, ids)).toEqual([]);
+    expect(parseFilings(null, allowed, batch)).toEqual([]);
+    expect(parseFilings({ f: 'nope' }, allowed, batch)).toEqual([]);
+    expect(parseFilings({ f: [[0, 0]] }, [], batch)).toEqual([]);
   });
 });

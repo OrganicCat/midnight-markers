@@ -186,7 +186,6 @@ export async function runResort(args: ResortRunArgs): Promise<ResortRunResult> {
 
   const runBatch = async (batch: BookmarkRef[]): Promise<FilingResult[]> => {
     const messages = buildFilingMessages({ skeleton: skeleton.folders, batch });
-    const ids = new Set(batch.map((b) => b.id));
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const raw = await provider.chatComplete({
@@ -196,7 +195,7 @@ export async function runResort(args: ResortRunArgs): Promise<ResortRunResult> {
           signal: args.signal,
           maxTokens: filingMaxTokens(batch.length),
         });
-        return parseFilings(raw, skeleton.folders, ids);
+        return parseFilings(raw, skeleton.folders, batch);
       } catch (e) {
         if (args.signal.aborted) throw e;
         const reason = classifyError(e, provider.label);

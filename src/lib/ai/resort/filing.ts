@@ -1,32 +1,34 @@
 import { MAX_COLLECTION_DEPTH } from '$lib/storage/collections';
 import type { OpenRouterMessage } from '$lib/ai/types';
-import type { FilingInput, FilingResult, Skeleton } from './types';
+import type { BookmarkRef, FilingInput, FilingResult, Skeleton } from './types';
 import { pathKey, renderPath } from './types';
 
 export const FILING_SYSTEM_PROMPT = `You are filing bookmarks into a fixed folder structure for a personal bookmark manager.
 
-You are given the complete list of available folders and a batch of bookmarks. Assign every bookmark to the folder where it best belongs. Return a single JSON object with this exact shape:
+You are given a numbered list of folders and a numbered batch of bookmarks. Decide which folder each bookmark belongs in, and answer with index pairs. Return a single JSON object with this exact shape:
 
-{ "filings": [{ "id": string, "path": string[] }] }
+{ "f": [[bookmarkIndex, folderIndex]] }
 
-- "id" must be copied exactly from the bookmark you are filing.
-- "path" must be one of the folders listed, copied exactly. Do NOT invent folders, do NOT add sub-folders, do NOT reword names. Only the folders listed are allowed.
+- Each entry is a pair of numbers: the bookmark's index, then the index of the folder it belongs in. Answer with the numbers from the two lists, never with titles or folder names.
+- Only the folders listed are allowed. Do NOT invent folders, do NOT add sub-folders.
 - File by subject, not by media type — a soldering video goes under the electronics folder, not a video folder.
-- Include every bookmark from the batch exactly once. If a bookmark genuinely fits nowhere in the list, omit it rather than forcing it somewhere wrong.
+- Include every bookmark from the batch exactly once. If a bookmark genuinely fits nowhere in the list, leave its index out rather than forcing it somewhere wrong.
 
 Return only the JSON object — no prose, no markdown fences.`;
 
 export function buildFilingMessages(input: FilingInput): OpenRouterMessage[] {
   const folderLines =
-    input.skeleton.length > 0 ? input.skeleton.map(renderPath).join('\n') : '(none)';
+    input.skeleton.length > 0
+      ? input.skeleton.map((p, i) => `${i}. ${renderPath(p)}`).join('\n')
+      : '(none)';
   const batchLines = input.batch
-    .map((b) => `${b.id} — ${b.title} — ${b.domain} — ${renderPath(b.path)}`)
+    .map((b, i) => `${i} — ${b.title} — ${b.domain} — ${renderPath(b.path)}`)
     .join('\n');
 
   const user = [
-    `Available folders (paths, top → leaf):\n${folderLines}`,
+    `Available folders (index. path, top → leaf):\n${folderLines}`,
     '',
-    `Bookmarks to file (id — title — domain — current folder):\n${batchLines}`,
+    `Bookmarks to file (index — title — domain — current folder):\n${batchLines}`,
   ].join('\n');
 
   return [
@@ -91,34 +93,59 @@ export function parseSkeleton(raw: unknown): Skeleton {
   return { folders, renames, merges };
 }
 
+/** A non-negative whole number, which is the only thing an index can be. */
+function isIndex(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+}
+
+/**
+ * Reads one entry of the model's answer.
+ *
+ * The prompt asks for `[bookmarkIndex, folderIndex]`, but models drift toward
+ * objects when a shape has named parts, so both are accepted.
+ */
+function readPair(entry: unknown): { bookmark: number; folder: number } | null {
+  if (Array.isArray(entry)) {
+    const [bookmark, folder] = entry;
+    return isIndex(bookmark) && isIndex(folder) ? { bookmark, folder } : null;
+  }
+  if (typeof entry === 'object' && entry !== null) {
+    const e = entry as Record<string, unknown>;
+    const bookmark = e.b ?? e.i ?? e.bookmark;
+    const folder = e.f ?? e.folder;
+    return isIndex(bookmark) && isIndex(folder) ? { bookmark, folder } : null;
+  }
+  return null;
+}
+
+/**
+ * Turns the model's index pairs back into real bookmark ids and folder paths.
+ *
+ * Bad entries are dropped rather than failing the batch: one nonsense pair in
+ * a hundred should cost you that bookmark, not the other ninety-nine.
+ */
 export function parseFilings(
   raw: unknown,
   allowedPaths: string[][],
-  validIds: Set<string>,
+  batch: BookmarkRef[],
 ): FilingResult[] {
-  const canonical = new Map<string, string[]>();
-  for (const p of allowedPaths) canonical.set(pathKey(p), p);
-
   let list: unknown = raw;
   if (typeof raw === 'object' && raw !== null && !Array.isArray(raw)) {
     const obj = raw as Record<string, unknown>;
-    list = obj.filings ?? obj.results ?? obj.bookmarks;
+    list = obj.f ?? obj.filings ?? obj.results ?? obj.bookmarks;
   }
   if (!Array.isArray(list)) return [];
 
   const out: FilingResult[] = [];
-  const used = new Set<string>();
+  const used = new Set<number>();
   for (const entry of list) {
-    if (typeof entry !== 'object' || entry === null) continue;
-    const e = entry as Record<string, unknown>;
-    const id = typeof e.id === 'string' ? e.id : '';
-    if (!validIds.has(id) || used.has(id)) continue;
-    const path = cleanPath(e.path);
-    if (!path) continue;
-    const match = canonical.get(pathKey(path));
-    if (!match) continue;
-    used.add(id);
-    out.push({ id, path: match });
+    const pair = readPair(entry);
+    if (!pair || used.has(pair.bookmark)) continue;
+    const bookmark = batch[pair.bookmark];
+    const path = allowedPaths[pair.folder];
+    if (!bookmark || !path) continue;
+    used.add(pair.bookmark);
+    out.push({ id: bookmark.id, path });
   }
   return out;
 }

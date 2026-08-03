@@ -29,14 +29,14 @@ async function seed() {
   });
 }
 
-/** Skeleton call returns Dev > Rust; filing call files whatever ids it was given. */
-function stubPlan(id: string) {
+/** Skeleton call returns Dev > Rust; filing call files the batch's only bookmark. */
+function stubPlan() {
   vi.stubGlobal(
     'fetch',
     vi
       .fn()
       .mockResolvedValueOnce(reply({ folders: [['Dev', 'Rust']], renames: [], merges: [] }))
-      .mockResolvedValue(reply({ filings: [{ id, path: ['Dev', 'Rust'] }] })),
+      .mockResolvedValue(reply({ f: [[0, 0]] })),
   );
 }
 
@@ -52,15 +52,15 @@ function props(overrides: Record<string, unknown> = {}) {
 
 describe('ResortDialog', () => {
   it('shows a planning state first', async () => {
-    const b = await seed();
-    stubPlan(b.id);
+    await seed();
+    stubPlan();
     render(ResortDialog, { props: props() });
     expect(screen.getByText(/planning folders/i)).toBeTruthy();
   });
 
   it('shows the proposed tree and a change count once planning finishes', async () => {
-    const b = await seed();
-    stubPlan(b.id);
+    await seed();
+    stubPlan();
     render(ResortDialog, { props: props() });
     await waitFor(() => expect(screen.getByText('Rust book')).toBeTruthy());
     expect(screen.getByText(/changes selected/i)).toBeTruthy();
@@ -68,8 +68,8 @@ describe('ResortDialog', () => {
   });
 
   it('drops the count when a change is unchecked', async () => {
-    const b = await seed();
-    stubPlan(b.id);
+    await seed();
+    stubPlan();
     render(ResortDialog, { props: props() });
     await waitFor(() => expect(screen.getByText('Rust book')).toBeTruthy());
     const before = screen.getByText(/changes selected/i).textContent ?? '';
@@ -78,8 +78,8 @@ describe('ResortDialog', () => {
   });
 
   it('applies and reports the result', async () => {
-    const b = await seed();
-    stubPlan(b.id);
+    await seed();
+    stubPlan();
     const onApplied = vi.fn();
     render(ResortDialog, { props: props({ onApplied }) });
     await waitFor(() => expect(screen.getByText('Rust book')).toBeTruthy());
@@ -103,8 +103,8 @@ describe('ResortDialog', () => {
   });
 
   it('closes on Cancel', async () => {
-    const b = await seed();
-    stubPlan(b.id);
+    await seed();
+    stubPlan();
     const onClose = vi.fn();
     render(ResortDialog, { props: props({ onClose }) });
     await fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
@@ -113,13 +113,13 @@ describe('ResortDialog', () => {
 
   it('says so when the plan proposes nothing', async () => {
     const dev = await collections.create({ name: 'Dev' });
-    const b = await bookmarks.create({ url: 'https://x.com', title: 'X', originalTitle: 'X', collectionId: dev.id });
+    await bookmarks.create({ url: 'https://x.com', title: 'X', originalTitle: 'X', collectionId: dev.id });
     vi.stubGlobal(
       'fetch',
       vi
         .fn()
         .mockResolvedValueOnce(reply({ folders: [['Dev']], renames: [], merges: [] }))
-        .mockResolvedValue(reply({ filings: [{ id: b.id, path: ['Dev'] }] })),
+        .mockResolvedValue(reply({ f: [[0, 0]] })),
     );
     render(ResortDialog, { props: props() });
     await waitFor(() => expect(screen.getByText(/already well organized|no changes/i)).toBeTruthy());
@@ -135,7 +135,7 @@ describe('ResortDialog', () => {
         .mockResolvedValueOnce(
           reply({ folders: [['Dev'], ['Design System']], renames: [], merges: [] }),
         )
-        .mockResolvedValue(reply({ filings: [] })),
+        .mockResolvedValue(reply({ f: [] })),
     );
     render(ResortDialog, { props: props() });
     await waitFor(() => expect(screen.getByText(/no usable filings/i)).toBeTruthy());
