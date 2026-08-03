@@ -23,14 +23,27 @@ export const MAX_BOOKMARKS = 5000;
  *
  * An entry looks like {"id":"01J8ZQ…","path":["Dev","Rust"]}. The id is a
  * 26-character ULID, which tokenizes at roughly one token per two characters
- * because it is random, so the id alone costs ~10-13 tokens before the folder
- * path and punctuation. 40 is comfortable headroom for a deep path.
+ * because it is random, so it costs ~10-13 tokens on its own; three levels of
+ * wordy folder names and the punctuation around them push a worst-case entry
+ * to around 40. Budgeting 60 buys a wide margin for nothing — you are billed
+ * on tokens generated, not tokens reserved.
+ *
+ * The room to be generous is not unlimited. The Anthropic SDK refuses any
+ * non-streaming request whose max_tokens implies more than ten minutes of
+ * generation, which caps us near 21,000 (calculateNonstreamingTimeout in
+ * @anthropic-ai/sdk). A full batch of 100 asks for 6,256, comfortably under.
  */
-const TOKENS_PER_FILING = 40;
+const TOKENS_PER_FILING = 60;
 const FILING_TOKEN_OVERHEAD = 256;
 
+/** Hard client-side ceiling on a non-streaming Anthropic request. */
+const NONSTREAMING_TOKEN_CEILING = 21_000;
+
 export function filingMaxTokens(batchSize: number): number {
-  return FILING_TOKEN_OVERHEAD + batchSize * TOKENS_PER_FILING;
+  return Math.min(
+    NONSTREAMING_TOKEN_CEILING,
+    FILING_TOKEN_OVERHEAD + batchSize * TOKENS_PER_FILING,
+  );
 }
 
 export type ResortFailReason =

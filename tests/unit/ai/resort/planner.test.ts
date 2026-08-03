@@ -5,6 +5,7 @@ import {
   resortReasonMessage,
   MAX_BOOKMARKS,
   BATCH_SIZE,
+  filingMaxTokens,
 } from '$lib/ai/resort/planner';
 import type { LastAIError } from '$lib/log';
 import type { BookmarkRef, FolderNode, ResortProgress } from '$lib/ai/resort/types';
@@ -57,6 +58,19 @@ describe('chunk', () => {
   });
   it('returns one chunk when the list is smaller than the size', () => {
     expect(chunk([1], 10)).toEqual([[1]]);
+  });
+});
+
+describe('filingMaxTokens', () => {
+  it('scales with the batch', () => {
+    expect(filingMaxTokens(100)).toBeGreaterThan(filingMaxTokens(10));
+  });
+
+  it('stays under the ceiling the Anthropic SDK enforces on non-streaming calls', () => {
+    // Above ~21.3k the SDK throws "Streaming is required" before sending
+    // anything, which would break resort far more loudly than truncation did.
+    expect(filingMaxTokens(BATCH_SIZE)).toBeLessThan(21_333);
+    expect(filingMaxTokens(100_000)).toBeLessThan(21_333);
   });
 });
 
