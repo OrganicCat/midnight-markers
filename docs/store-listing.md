@@ -219,8 +219,13 @@ manifest differences resolved from the `{{firefox}}.`-prefixed keys in
 - **Add-on ID.** `browser_specific_settings.gecko.id` is
   `midnight-markers@organiccat.github.io`. AMO requires a stable ID to publish
   under, and it must never change once the first version is accepted.
-- **Minimum version.** `strict_min_version` is `140.0`, which is what the data
-  collection key below requires.
+- **Minimum version.** `strict_min_version` is `142.0`. The data collection
+  key below landed in desktop Firefox 140 but not until 142 on Android, and
+  AMO checks both. Since `gecko_android` is absent — this extension replaces
+  the new tab page, which
+  [Firefox for Android does not support](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/chrome_url_overrides#browser_compatibility)
+  — Android inherits the desktop minimum, so 142 satisfies both. The cost is
+  desktop 140 and 141, including anyone still on the 140 ESR line.
 
 The extension code calls `browser.*` when it exists and falls back to
 `chrome.*` (see `src/lib/ext.ts`). Firefox's `chrome.*` namespace is a
@@ -265,11 +270,15 @@ Run AMO's own validator against the built extension:
 
     npx web-ext lint --source-dir dist-firefox
 
-It should report zero errors. Two warnings are expected and do not block
-review: an `innerHTML` assignment inside the bundled Svelte runtime, and a
-note that the Android minimum version predates the data collection key —
-this extension replaces the new tab page and is not aimed at Firefox for
-Android.
+It should report zero errors, zero warnings and zero notices. If a warning
+appears, fix it rather than shipping past it — the two that turned up during
+the initial port both had real fixes:
+
+- **`innerHTML`**, from Svelte's default fragment cloning. `svelte.config.js`
+  sets `fragments: 'tree'`, which builds fragments element by element instead.
+  The validator can't tell that Svelte's template string is a compile-time
+  constant, and it's the wrong fight to pick with a reviewer.
+- **Android minimum version**, fixed by the `strict_min_version` bump above.
 
 ### Host permissions
 
