@@ -113,15 +113,32 @@ describe('ResortDialog', () => {
 
   it('says so when the plan proposes nothing', async () => {
     const dev = await collections.create({ name: 'Dev' });
-    await bookmarks.create({ url: 'https://x.com', title: 'X', originalTitle: 'X', collectionId: dev.id });
+    const b = await bookmarks.create({ url: 'https://x.com', title: 'X', originalTitle: 'X', collectionId: dev.id });
     vi.stubGlobal(
       'fetch',
       vi
         .fn()
         .mockResolvedValueOnce(reply({ folders: [['Dev']], renames: [], merges: [] }))
-        .mockResolvedValue(reply({ filings: [] })),
+        .mockResolvedValue(reply({ filings: [{ id: b.id, path: ['Dev'] }] })),
     );
     render(ResortDialog, { props: props() });
     await waitFor(() => expect(screen.getByText(/already well organized|no changes/i)).toBeTruthy());
+  });
+
+  it('errors instead of offering empty folders when nothing could be filed', async () => {
+    const dev = await collections.create({ name: 'Dev' });
+    await bookmarks.create({ url: 'https://x.com', title: 'X', originalTitle: 'X', collectionId: dev.id });
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          reply({ folders: [['Dev'], ['Design System']], renames: [], merges: [] }),
+        )
+        .mockResolvedValue(reply({ filings: [] })),
+    );
+    render(ResortDialog, { props: props() });
+    await waitFor(() => expect(screen.getByText(/no usable filings/i)).toBeTruthy());
+    expect(screen.queryByRole('button', { name: /apply/i })).toBeNull();
   });
 });

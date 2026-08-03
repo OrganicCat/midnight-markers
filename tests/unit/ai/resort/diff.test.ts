@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { planToChanges } from '$lib/ai/resort/diff';
-import type { BookmarkRef, FolderNode, ResortPlan } from '$lib/ai/resort/types';
+import { pathKey, type BookmarkRef, type FolderNode, type ResortPlan } from '$lib/ai/resort/types';
 
 function folder(id: string, path: string[], parentId: string | null = null): FolderNode {
   return { id, name: path[path.length - 1]!, parentId, path };
@@ -29,23 +29,80 @@ describe('planToChanges', () => {
   it('emits folder-new only for paths that do not exist yet', () => {
     const changes = planToChanges({
       folders: [folder('c1', ['Dev'])],
-      bookmarks: [],
-      plan: plan({ folders: [['Dev'], ['Dev', 'Rust']] }),
+      bookmarks: [bm('b1', ['Dev'])],
+      plan: plan({
+        folders: [['Dev'], ['Dev', 'Rust']],
+        filings: [{ id: 'b1', path: ['Dev', 'Rust'] }],
+      }),
     });
     expect(changes.filter((c) => c.kind === 'folder-new')).toEqual([
-      { kind: 'folder-new', key: 'new:dev rust', path: ['Dev', 'Rust'] },
+      { kind: 'folder-new', key: `new:${pathKey(['Dev', 'Rust'])}`, path: ['Dev', 'Rust'] },
     ]);
   });
 
   it('emits a folder-new for each missing ancestor of a deep path', () => {
     const changes = planToChanges({
       folders: [],
-      bookmarks: [],
-      plan: plan({ folders: [['A', 'B', 'C']] }),
+      bookmarks: [bm('b1', [])],
+      plan: plan({ folders: [['A', 'B', 'C']], filings: [{ id: 'b1', path: ['A', 'B', 'C'] }] }),
     });
     expect(
       changes.filter((c) => c.kind === 'folder-new').map((c) => (c as { path: string[] }).path),
     ).toEqual([['A'], ['A', 'B'], ['A', 'B', 'C']]);
+  });
+
+  it('drops proposed folders that no bookmark is filed into', () => {
+    const changes = planToChanges({
+      folders: [folder('c1', ['Old'])],
+      bookmarks: [bm('b1', ['Old'])],
+      plan: plan({
+        folders: [['Dev'], ['Design'], ['Ops', 'Kubernetes']],
+        filings: [{ id: 'b1', path: ['Dev'] }],
+      }),
+    });
+    expect(
+      changes.filter((c) => c.kind === 'folder-new').map((c) => (c as { path: string[] }).path),
+    ).toEqual([['Dev']]);
+  });
+
+  it('proposes nothing at all when the plan filed nothing', () => {
+    const changes = planToChanges({
+      folders: [folder('c1', ['Old'])],
+      bookmarks: [bm('b1', ['Old']), bm('b2', ['Old'])],
+      plan: plan({ folders: [['Dev'], ['Design'], ['Ops']], unplannedIds: ['b1', 'b2'] }),
+    });
+    expect(changes).toEqual([]);
+  });
+
+  it('drops a rename that would collide with an existing sibling', () => {
+    const changes = planToChanges({
+      folders: [folder('c1', ['Dev']), folder('c2', ['Development'])],
+      bookmarks: [],
+      plan: plan({
+        folders: [['Dev'], ['Development']],
+        skeleton: { renames: [{ from: ['Dev'], to: 'Development' }] },
+      }),
+    });
+    expect(changes.filter((c) => c.kind === 'folder-rename')).toEqual([]);
+  });
+
+  it('drops a second rename that would collide with the first', () => {
+    const changes = planToChanges({
+      folders: [folder('c1', ['Dev']), folder('c2', ['Coding'])],
+      bookmarks: [],
+      plan: plan({
+        folders: [['Dev'], ['Coding']],
+        skeleton: {
+          renames: [
+            { from: ['Dev'], to: 'Engineering' },
+            { from: ['Coding'], to: 'Engineering' },
+          ],
+        },
+      }),
+    });
+    const renames = changes.filter((c) => c.kind === 'folder-rename');
+    expect(renames).toHaveLength(1);
+    expect((renames[0] as { id: string }).id).toBe('c1');
   });
 
   it('emits a rename with the resulting path', () => {

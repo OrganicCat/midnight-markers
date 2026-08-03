@@ -76,9 +76,15 @@ export function renderPath(path: string[]): string {
   return path.length === 0 ? '(unfiled)' : path.join(' > ');
 }
 
-/** Stable comparison key for a path, case-insensitive. */
+/**
+ * Stable comparison key for a path, case-insensitive.
+ *
+ * Segments are joined with a NUL byte rather than a space, so ['A B', 'C'] and
+ * ['A', 'B C'] get different keys. Folder names come from a language model and
+ * from the user, and a space separator let those two collapse into one.
+ */
 export function pathKey(path: string[]): string {
-  return path.map((s) => s.trim().toLowerCase()).join(' ');
+  return path.map((s) => s.trim().toLowerCase()).join('\0');
 }
 
 /** True when `prefix` is `path` or an ancestor of it. */

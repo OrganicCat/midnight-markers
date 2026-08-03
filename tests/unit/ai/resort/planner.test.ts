@@ -91,7 +91,7 @@ describe('runResort', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
-  it('reports bookmarks as unplanned when their batch fails twice', async () => {
+  it('fails rather than returning a folders-only plan when every batch fails', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(reply({ folders: [['Dev']] }))
@@ -99,11 +99,20 @@ describe('runResort', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     const r = await runResort(baseArgs([bm('b1')]));
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.plan.filings).toEqual([]);
-      expect(r.plan.unplannedIds).toEqual(['b1']);
-    }
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toEqual({ kind: 'no-filings', batches: 1, failed: 1 });
+  });
+
+  it('fails when the model returns filings that match no proposed folder', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(reply({ folders: [['Dev']] }))
+      .mockResolvedValue(reply({ filings: [{ id: 'b1', path: ['Nowhere'] }] }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const r = await runResort(baseArgs([bm('b1')]));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toEqual({ kind: 'no-filings', batches: 1, failed: 0 });
   });
 
   it('marks bookmarks the model omitted as unplanned', async () => {

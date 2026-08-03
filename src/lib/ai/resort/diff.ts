@@ -17,12 +17,30 @@ export function planToChanges(input: {
   const deletes: Change[] = [];
 
   // --- renames -------------------------------------------------------------
+  // Two folders that end up with the same name under the same parent are
+  // indistinguishable in the sidebar, and `resolvePath` will only ever find the
+  // first of them — so a rename that collides with a sibling is dropped.
+  const siblingNames = new Map<string, Set<string>>(); // parentId → lowercased names
+  const siblingKey = (parentId: string | null) => parentId ?? '';
+  for (const f of folders) {
+    const k = siblingKey(f.parentId);
+    const set = siblingNames.get(k) ?? new Set<string>();
+    set.add(f.name.trim().toLowerCase());
+    siblingNames.set(k, set);
+  }
+
   const renamedIds = new Set<string>();
   for (const r of plan.skeleton.renames) {
     const target = byPath.get(pathKey(r.from));
     if (!target) continue;
-    if (target.name.trim().toLowerCase() === r.to.trim().toLowerCase()) continue;
+    const from = target.name.trim().toLowerCase();
+    const to = r.to.trim().toLowerCase();
+    if (from === to) continue;
     if (renamedIds.has(target.id)) continue;
+    const siblings = siblingNames.get(siblingKey(target.parentId));
+    if (siblings?.has(to)) continue;
+    siblings?.delete(from);
+    siblings?.add(to);
     renamedIds.add(target.id);
     renames.push({
       kind: 'folder-rename',
@@ -55,21 +73,6 @@ export function planToChanges(input: {
     });
   }
 
-  // --- new folders ---------------------------------------------------------
-  // A skeleton path is new when no current folder has that path. Every missing
-  // ancestor gets its own change so the user can reject a whole branch.
-  const plannedNew = new Set<string>();
-  const addNew = (path: string[]) => {
-    for (let i = 1; i <= path.length; i++) {
-      const prefix = path.slice(0, i);
-      const k = pathKey(prefix);
-      if (byPath.has(k) || plannedNew.has(k)) continue;
-      plannedNew.add(k);
-      news.push({ kind: 'folder-new', key: `new:${k}`, path: prefix });
-    }
-  };
-  for (const path of plan.skeleton.folders) addNew(path);
-
   // --- bookmark moves ------------------------------------------------------
   const emptiedFrom = new Map<string, number>(); // pathKey → bookmarks leaving
   const stillHolds = new Set<string>(); // pathKey of folders keeping bookmarks
@@ -92,6 +95,35 @@ export function planToChanges(input: {
       const k = pathKey(b.path);
       emptiedFrom.set(k, (emptiedFrom.get(k) ?? 0) + 1);
     }
+  }
+
+  // --- new folders ---------------------------------------------------------
+  // Only folders that will actually receive a bookmark are proposed. The model
+  // is asked for a complete skeleton, so it routinely names folders nothing
+  // gets filed into; and when the filing pass returns little or nothing, the
+  // whole skeleton would otherwise land as a tree of empty folders.
+  //
+  // Every missing ancestor gets its own change so the user can reject a branch.
+  const plannedNew = new Set<string>();
+  const addNew = (path: string[]) => {
+    for (let i = 1; i <= path.length; i++) {
+      const prefix = path.slice(0, i);
+      const k = pathKey(prefix);
+      if (byPath.has(k) || plannedNew.has(k)) continue;
+      plannedNew.add(k);
+      news.push({ kind: 'folder-new', key: `new:${k}`, path: prefix });
+    }
+  };
+  const destinations = new Set<string>();
+  for (const m of moves) {
+    if (m.kind !== 'bookmark-move') continue;
+    destinations.add(pathKey(m.toPath));
+  }
+  // A parent that only holds sub-folders is still created, by addNew's ancestor
+  // walk. A skeleton path that is neither a destination nor an ancestor of one
+  // is dropped.
+  for (const path of plan.skeleton.folders) {
+    if (destinations.has(pathKey(path))) addNew(path);
   }
 
   // --- deletes -------------------------------------------------------------

@@ -20,7 +20,8 @@ export const MAX_BOOKMARKS = 5000;
 export type ResortFailReason =
   | SuggestFailReason
   | { kind: 'too-many'; count: number }
-  | { kind: 'empty-skeleton' };
+  | { kind: 'empty-skeleton' }
+  | { kind: 'no-filings'; batches: number; failed: number };
 
 export type ResortRunArgs = {
   folders: FolderNode[];
@@ -72,6 +73,10 @@ export function resortReasonMessage(r: ResortFailReason): string {
     case 'too-many':
       return `Too many bookmarks to resort at once (${r.count}, limit ${MAX_BOOKMARKS}). Resort a folder instead.`;
     case 'empty-skeleton': return 'The model did not propose any folders';
+    case 'no-filings':
+      return r.failed > 0
+        ? `Could not file any bookmarks — ${r.failed} of ${r.batches} request${r.batches === 1 ? '' : 's'} failed. Nothing was changed.`
+        : 'The model returned no usable filings, so nothing was changed.';
     case 'unknown': return r.message;
   }
 }
@@ -128,6 +133,8 @@ export async function runResort(args: ResortRunArgs): Promise<ResortRunResult> {
   let done = 0;
   const allIds = new Set(args.bookmarks.map((b) => b.id));
 
+  let failedBatches = 0;
+
   const runBatch = async (batch: BookmarkRef[]): Promise<FilingResult[]> => {
     const messages = buildFilingMessages({ skeleton: skeleton.folders, batch });
     const ids = new Set(batch.map((b) => b.id));
@@ -146,7 +153,10 @@ export async function runResort(args: ResortRunArgs): Promise<ResortRunResult> {
           attempt,
           reason: classifyError(e, provider.label),
         });
-        if (attempt === 1) return [];
+        if (attempt === 1) {
+          failedBatches++;
+          return [];
+        }
       }
     }
     return [];
@@ -170,6 +180,17 @@ export async function runResort(args: ResortRunArgs): Promise<ResortRunResult> {
   }
 
   const filings = batchResults.flat();
+
+  // A skeleton with nothing filed into it is worse than no plan at all: apply it
+  // and you get a tree of empty folders and every bookmark still where it was.
+  if (filings.length === 0) {
+    log.error('resort filed nothing', { batches: batches.length, failed: failedBatches });
+    return {
+      ok: false,
+      reason: { kind: 'no-filings', batches: batches.length, failed: failedBatches },
+    };
+  }
+
   const filed = new Set(filings.map((f) => f.id));
   const unplannedIds = [...allIds].filter((id) => !filed.has(id));
 
