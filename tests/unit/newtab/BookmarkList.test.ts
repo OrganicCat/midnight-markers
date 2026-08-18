@@ -90,4 +90,35 @@ describe('BookmarkList', () => {
     await fireEvent.click(getByText('Zed'));
     expect(opened && (opened as Bookmark).id).toBe('b1');
   });
+
+  it('opens a bookmark in the background on middle click', async () => {
+    let opened: Bookmark | null = null;
+    let background: boolean | undefined;
+    const { getByText } = render(BookmarkList, {
+      rows: buildListRows(items, collections),
+      tags: [],
+      onOpen: (b: Bookmark, bg?: boolean) => {
+        opened = b;
+        background = bg;
+      },
+      onDelete: noop,
+      onToggleCollection: noop,
+    });
+    await fireEvent(getByText('Zed'), new MouseEvent('auxclick', { button: 1, bubbles: true, cancelable: true }));
+    expect(opened && (opened as Bookmark).id).toBe('b1');
+    expect(background).toBe(true);
+  });
+
+  it('ignores a right click', async () => {
+    let opened: Bookmark | null = null;
+    const { getByText } = render(BookmarkList, {
+      rows: buildListRows(items, collections),
+      tags: [],
+      onOpen: (b: Bookmark) => (opened = b),
+      onDelete: noop,
+      onToggleCollection: noop,
+    });
+    await fireEvent(getByText('Zed'), new MouseEvent('auxclick', { button: 2, bubbles: true, cancelable: true }));
+    expect(opened).toBeNull();
+  });
 });
