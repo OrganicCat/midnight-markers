@@ -14,7 +14,7 @@
     tags: Tag[];
     /** Id of the keyboard-selected bookmark, or null when nothing is selected. */
     selectedId?: string | null;
-    onOpen: (b: Bookmark) => void;
+    onOpen: (b: Bookmark, background?: boolean) => void;
     onDelete: (b: Bookmark) => void;
     onToggleCollection: (id: string) => void;
   } = $props();
@@ -80,6 +80,8 @@
           }}
           onclick={() => onOpen(row.bookmark)}
           onkeydown={(e) => e.key === 'Enter' && onOpen(row.bookmark)}
+          onauxclick={(e) => { if (e.button === 1) { e.preventDefault(); onOpen(row.bookmark, true); } }}
+          onmousedown={(e) => { if (e.button === 1) e.preventDefault(); }}
           class="grid grid-cols-[1rem_1fr_8.75rem_3.75rem_1.5rem] gap-3 items-center py-2 pr-2 border-b border-white/5 hover:bg-white/5 cursor-pointer text-sm group {row.bookmark.id === selectedId ? 'bg-accent-violet/10 ring-1 ring-accent-violet/40 rounded' : ''}"
           style="padding-left: {0.5 + row.depth * INDENT}rem"
         >
@@ -105,6 +107,7 @@
           <button
             class="opacity-0 group-hover:opacity-100 text-base leading-none w-6 h-6 flex items-center justify-center rounded hover:bg-red-500/20"
             onclick={(e) => { e.stopPropagation(); onDelete(row.bookmark); }}
+            onauxclick={(e) => e.stopPropagation()}
             aria-label="Delete bookmark"
           >×</button>
         </div>

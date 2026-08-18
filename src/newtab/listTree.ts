@@ -32,6 +32,14 @@ export type BuildOptions = {
    * real thing the user made and expects to see.
    */
   pruneEmpty?: boolean;
+  /**
+   * Draw every surviving collection open, ignoring `collapsed`. Wanted while a
+   * search or filter is narrowing the pool: a folder that only survives because
+   * something inside it matched should show that match, not hide it behind a
+   * fold the user set days ago. The collapsed set is left untouched, so the
+   * tree returns to its old shape once the filter clears.
+   */
+  expandAll?: boolean;
 };
 
 const byName = (a: string, b: string): number =>
@@ -47,7 +55,7 @@ const byName = (a: string, b: string): number =>
 export function buildListRows(
   items: readonly Bookmark[],
   collections: readonly Collection[],
-  { collapsed = new Set<string>(), pruneEmpty = false }: BuildOptions = {},
+  { collapsed = new Set<string>(), pruneEmpty = false, expandAll = false }: BuildOptions = {},
 ): ListRow[] {
   const known = new Set(collections.map((c) => c.id));
 
@@ -89,7 +97,7 @@ export function buildListRows(
       if (visited.has(c.id)) continue;
       const count = countIn(c.id);
       if (pruneEmpty && count === 0) continue;
-      const expanded = !collapsed.has(c.id);
+      const expanded = expandAll || !collapsed.has(c.id);
       rows.push({ kind: 'collection', key: c.id, collection: c, depth, count, expanded });
       visited.add(c.id);
       if (expanded) {

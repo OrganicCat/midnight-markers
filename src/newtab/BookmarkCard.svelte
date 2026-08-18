@@ -1,9 +1,12 @@
 <script lang="ts">
   import type { Bookmark } from '$lib/types';
-  let { bookmark, onOpen, onDelete }: { bookmark: Bookmark; onOpen: () => void; onDelete: () => void } = $props();
+  let { bookmark, onOpen, onDelete }: { bookmark: Bookmark; onOpen: (background?: boolean) => void; onDelete: () => void } = $props();
 </script>
 
-<div class="bm-card overflow-hidden cursor-pointer group" role="button" tabindex="0" onclick={onOpen} onkeydown={(e) => e.key === 'Enter' && onOpen()}>
+<div class="bm-card overflow-hidden cursor-pointer group" role="button" tabindex="0" onclick={() => onOpen()}
+  onkeydown={(e) => e.key === 'Enter' && onOpen()}
+  onauxclick={(e) => { if (e.button === 1) { e.preventDefault(); onOpen(true); } }}
+  onmousedown={(e) => { if (e.button === 1) e.preventDefault(); }}>
   <div class="h-[100px] bg-white/5">
     {#if bookmark.thumbnailUrl}
       <img src={bookmark.thumbnailUrl} alt="" class="w-full h-full object-cover" loading="lazy" />
@@ -24,6 +27,7 @@
   <button
     class="absolute top-1.5 right-1.5 w-7 h-7 flex items-center justify-center text-base leading-none rounded-md bg-black/50 hover:bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity"
     onclick={(e) => { e.stopPropagation(); onDelete(); }}
+    onauxclick={(e) => e.stopPropagation()}
     aria-label="Delete bookmark"
   >×</button>
 </div>

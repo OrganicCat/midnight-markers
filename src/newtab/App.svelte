@@ -15,6 +15,7 @@
   import { collections as colStore } from '$lib/storage/collections';
   import { tags as tagsStore } from '$lib/storage/tags';
   import { settings } from '$lib/storage/settings';
+  import { ext } from '$lib/ext';
   import { storageEvents } from '$lib/storage/events';
   import { buildIndex, searchIds, type SearchIndex } from '$lib/search/index';
   import { buildListRows, visibleBookmarks } from './listTree';
@@ -77,7 +78,11 @@
   const isFiltered = $derived(search.trim() !== '' || selection.kind !== 'all');
 
   const listRows = $derived(
-    buildListRows(items, collections, { collapsed: new Set(collapsed), pruneEmpty: isFiltered }),
+    buildListRows(items, collections, {
+      collapsed: new Set(collapsed),
+      pruneEmpty: isFiltered,
+      expandAll: isFiltered,
+    }),
   );
 
   /**
@@ -315,8 +320,16 @@
     notify(`Merged ${label} — ${bookmarksMoved} bookmark${bookmarksMoved === 1 ? '' : 's'} moved.`);
   }
 
-  async function openBookmark(b: Bookmark) {
+  /**
+   * Opens a bookmark. `background` is what a middle click asks for: a new tab
+   * that doesn't steal focus, the way a middle click on a link behaves.
+   */
+  async function openBookmark(b: Bookmark, background = false) {
     if (b.unread) await bookmarks.update(b.id, { unread: false });
+    if (background && ext?.tabs?.create) {
+      await ext.tabs.create({ url: b.url, active: false });
+      return;
+    }
     window.open(b.url, '_blank');
   }
 

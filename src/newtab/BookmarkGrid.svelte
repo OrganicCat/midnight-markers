@@ -10,7 +10,7 @@
   }: {
     items: Bookmark[];
     selectedIndex?: number;
-    onOpen: (b: Bookmark) => void;
+    onOpen: (b: Bookmark, background?: boolean) => void;
     onDelete: (b: Bookmark) => void;
   } = $props();
 </script>
@@ -29,7 +29,7 @@
           if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
         }}
       >
-        <BookmarkCard bookmark={b} onOpen={() => onOpen(b)} onDelete={() => onDelete(b)} />
+        <BookmarkCard bookmark={b} onOpen={(background) => onOpen(b, background)} onDelete={() => onDelete(b)} />
       </div>
     {/each}
   </div>

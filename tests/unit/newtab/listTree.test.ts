@@ -96,6 +96,17 @@ describe('buildListRows', () => {
     expect(labels(rows)).toEqual(['Learning/', '  AI/', '    Deep']);
   });
 
+  it('opens collapsed collections when expandAll is set', () => {
+    const collections = [col('learn', 'Learning'), col('ai', 'AI', 'learn')];
+    const items = [bm('b1', 'Deep', 'ai')];
+    const collapsed = new Set(['learn', 'ai']);
+
+    expect(labels(buildListRows(items, collections, { collapsed }))).toEqual(['Learning/']);
+    expect(
+      labels(buildListRows(items, collections, { collapsed, expandAll: true, pruneEmpty: true })),
+    ).toEqual(['Learning/', '  AI/', '    Deep']);
+  });
+
   it('re-roots bookmarks and collections whose parent no longer exists', () => {
     const rows = buildListRows([bm('b1', 'Orphan', 'gone')], [col('kid', 'Kid', 'missing')]);
     expect(labels(rows)).toEqual(['Kid/', 'Orphan']);
