@@ -23,6 +23,25 @@ describe('Spotlight', () => {
     expect(document.querySelector('[data-tour-overlay]')).toBe(null);
   });
 
+  it('leaves the keyboard alone while the tour is inactive', () => {
+    // The component stays mounted between tours and listens on the capture
+    // phase, so an unguarded handler would swallow Enter, Escape and the
+    // arrows for the whole page.
+    mount();
+    const seen: string[] = [];
+    const spy = (e: KeyboardEvent) => seen.push(e.key);
+    document.addEventListener('keydown', spy);
+    try {
+      for (const key of ['Enter', 'Escape', 'ArrowLeft', 'ArrowRight', ' ']) {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+        document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+      }
+    } finally {
+      document.removeEventListener('keydown', spy);
+    }
+    expect(seen).toEqual(['Enter', 'Escape', 'ArrowLeft', 'ArrowRight', ' ']);
+  });
+
   it('shows the current step once started', async () => {
     const tour = mount();
     tour.start();

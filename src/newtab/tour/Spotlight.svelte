@@ -81,6 +81,10 @@
   });
 
   function onKeydown(e: KeyboardEvent): void {
+    // This component stays mounted whether or not the tour is running, and the
+    // listener below is on the capture phase — so without this guard it would
+    // eat Enter, Escape and the left/right arrows for the whole page.
+    if (!tour.active) return;
     switch (e.key) {
       case 'Escape':
         e.preventDefault();
