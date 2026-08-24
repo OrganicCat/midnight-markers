@@ -7,6 +7,7 @@
   import ResortDialog from './ResortDialog.svelte';
   import HelpDialog from './HelpDialog.svelte';
   import Spotlight from './tour/Spotlight.svelte';
+  import { focusSearch, isSearchHotkey } from './searchHotkey';
   import { createTour } from './tour/tour.svelte';
   import { snapshots } from '$lib/storage/snapshot';
   import type { ResortScope } from '$lib/ai/resort/types';
@@ -160,10 +161,17 @@
     // Don't intercept when an input/textarea has focus.
     const t = e.target as HTMLElement;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      if (isSearchHotkey(e)) {
         e.preventDefault();
-        (document.querySelector('input[placeholder^="Search"]') as HTMLInputElement | null)?.focus();
+        focusSearch();
       }
+      return;
+    }
+
+    // The search hotkey works from anywhere, including the bookmark grid.
+    if (isSearchHotkey(e)) {
+      e.preventDefault();
+      focusSearch();
       return;
     }
 
@@ -174,16 +182,11 @@
         break;
       case '/': // common search-focus shortcut
         e.preventDefault();
-        (document.querySelector('input[placeholder^="Search"]') as HTMLInputElement | null)?.focus();
+        focusSearch();
         break;
       case 'k':
       case 'K':
-        if (e.metaKey || e.ctrlKey) {
-          e.preventDefault();
-          (document.querySelector('input[placeholder^="Search"]') as HTMLInputElement | null)?.focus();
-        } else if (navItems.length > 0) {
-          selectedIndex = Math.max(0, selectedIndex - 1);
-        }
+        if (navItems.length > 0) selectedIndex = Math.max(0, selectedIndex - 1);
         break;
       case 'j':
       case 'J':

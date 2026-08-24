@@ -2,10 +2,12 @@
  * The keyboard cheat sheet, in one place. These mirror the switch in
  * App.svelte's `handleKey` — change one, change the other.
  */
+import { SEARCH_HOTKEY_LABEL } from '../searchHotkey';
+
 export type Shortcut = { keys: string; description: string };
 
 export const SHORTCUTS: Shortcut[] = [
-  { keys: '⌘K  /  Ctrl K  /  /', description: 'Focus the search box' },
+  { keys: `${SEARCH_HOTKEY_LABEL}  /  /`, description: 'Focus the search box' },
   { keys: 'J  or  ↓', description: 'Select the next bookmark' },
   { keys: 'K  or  ↑', description: 'Select the previous bookmark' },
   { keys: '↵', description: 'Open the selected bookmark' },
