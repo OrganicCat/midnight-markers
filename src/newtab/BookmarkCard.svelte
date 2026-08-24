@@ -4,7 +4,7 @@
 </script>
 
 <div class="bm-card overflow-hidden cursor-pointer group" role="button" tabindex="0" onclick={() => onOpen()}
-  onkeydown={(e) => e.key === 'Enter' && onOpen()}
+  onkeydown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onOpen(); } }}
   onauxclick={(e) => { if (e.button === 1) { e.preventDefault(); onOpen(true); } }}
   onmousedown={(e) => { if (e.button === 1) e.preventDefault(); }}>
   <div class="h-[100px] bg-white/5">

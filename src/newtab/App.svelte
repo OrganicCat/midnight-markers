@@ -19,7 +19,8 @@
   import { ext } from '$lib/ext';
   import { storageEvents } from '$lib/storage/events';
   import { buildIndex, searchIds, type SearchIndex } from '$lib/search/index';
-  import { buildListRows, visibleBookmarks } from './listTree';
+  import { buildListRows, type ListRow } from './listTree';
+  import { stepIndex, gridDelta, enterAction, folderArrow, navigableRows } from './keynav';
   import type { Bookmark, Collection, Tag } from '$lib/types';
 
   let selection = $state<Selection>({ kind: 'all' });
@@ -56,13 +57,13 @@
   }
 
   function toggleCollection(id: string) {
-    // Folding a folder shifts every row beneath it, so follow the selected
-    // bookmark by id rather than leaving the cursor on whatever slid into its
-    // slot. If it was inside the folder just closed it is gone from the tree,
-    // and the clamp effect takes over.
-    const keep = selectedId;
+    // Folding a folder shifts every row beneath it, so follow the selected row
+    // by key rather than leaving the cursor on whatever slid into its slot. If
+    // it was inside the folder just closed it is gone from the tree, and the
+    // clamp effect takes over.
+    const keep = selectedKey;
     collapsed = collapsed.includes(id) ? collapsed.filter((c) => c !== id) : [...collapsed, id];
-    const moved = navItems.findIndex((b) => b.id === keep);
+    const moved = navRows.findIndex((r) => r.key === keep);
     if (moved >= 0) selectedIndex = moved;
     try {
       localStorage.setItem(COLLAPSED_KEY, JSON.stringify(collapsed));
@@ -87,12 +88,19 @@
   );
 
   /**
-   * What j/k, Enter and Delete walk. In list view that is the tree in the order
-   * it is drawn, minus anything hidden inside a collapsed folder; in grid view
-   * it is simply the items.
+   * What the keyboard cursor walks. In list view that is the tree in the order
+   * it is drawn — folders included, since Enter folds them — minus anything
+   * hidden inside a collapsed folder. In grid view it is simply the cards.
    */
-  const navItems = $derived(view === 'list' ? visibleBookmarks(listRows) : items);
-  const selectedId = $derived(navItems[selectedIndex]?.id ?? null);
+  const navRows = $derived<ListRow[]>(
+    view === 'list'
+      ? navigableRows(listRows, isFiltered)
+      : items.map((b) => ({ kind: 'bookmark', key: b.id, bookmark: b, depth: 0 })),
+  );
+  const selectedRow = $derived(navRows[selectedIndex]);
+  const selectedKey = $derived(selectedRow?.key ?? null);
+  /** The bookmark under the cursor, or null when it is parked on a folder. */
+  const selectedBookmark = $derived(selectedRow?.kind === 'bookmark' ? selectedRow.bookmark : null);
 
   async function loadData() {
     const [colList, tagList, bmList, s] = await Promise.all([
@@ -150,21 +158,129 @@
 
   $effect(() => {
     // reset selection when the navigable rows change shape
-    void navItems;
-    if (selectedIndex >= navItems.length) selectedIndex = Math.max(0, navItems.length - 1);
+    void navRows;
+    if (selectedIndex >= navRows.length) selectedIndex = Math.max(0, navRows.length - 1);
   });
+
+  /**
+   * A new query or a new filter means a new list, so send the cursor back to
+   * the top. Without this, typing a search and pressing Enter would open
+   * whatever happened to sit at the old cursor position.
+   */
+  $effect(() => {
+    void search;
+    void selection;
+    selectedIndex = 0;
+  });
+
+  /**
+   * Keep the cursor on screen. Driving the list from the search box otherwise
+   * walks it straight out of view. Waiting a frame lets the row exist first;
+   * `nearest` scrolls the minimum needed, so the page doesn't lurch.
+   */
+  $effect(() => {
+    const key = selectedKey;
+    if (key === null) return;
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-nav-key="${CSS.escape(key)}"]`);
+      el?.scrollIntoView({ block: 'nearest' });
+    });
+  });
+
+  /**
+   * How many cards the grid is fitting across right now. The count comes from
+   * `auto-fill`, so it depends on the window width and has to be read off the
+   * live layout rather than assumed.
+   */
+  function gridColumns(): number {
+    const el = document.querySelector('[data-bookmark-grid]');
+    if (!el) return 1;
+    const template = getComputedStyle(el).gridTemplateColumns;
+    const n = template ? template.split(' ').filter(Boolean).length : 0;
+    return n > 0 ? n : 1;
+  }
+
+  /**
+   * Move the cursor with an arrow key. `sideways` is false while the user is
+   * typing in the search box, where left and right belong to the text caret.
+   * Returns whether the key was used, so the caller knows to swallow it.
+   */
+  function moveCursor(key: string, sideways: boolean): boolean {
+    if (navRows.length === 0) return false;
+    if (view === 'grid') {
+      if (!sideways && (key === 'ArrowLeft' || key === 'ArrowRight')) return false;
+      const delta = gridDelta(key, gridColumns());
+      if (delta === null) return false;
+      selectedIndex = stepIndex(selectedIndex, navRows.length, delta);
+      return true;
+    }
+    if (key === 'ArrowDown') {
+      selectedIndex = stepIndex(selectedIndex, navRows.length, 1);
+      return true;
+    }
+    if (key === 'ArrowUp') {
+      selectedIndex = stepIndex(selectedIndex, navRows.length, -1);
+      return true;
+    }
+    if (!sideways) return false;
+    const folder = folderArrow(selectedRow, key);
+    if (folder !== null) {
+      toggleCollection(folder);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Tab and click move the cursor too, so the highlight is never somewhere the
+   * user isn't. Without this you could tab to one row while the arrows still
+   * walked from another.
+   */
+  function focusRow(key: string): void {
+    const i = navRows.findIndex((r) => r.key === key);
+    if (i >= 0) selectedIndex = i;
+  }
+
+  /** Enter: open the bookmark under the cursor, or fold the folder under it. */
+  function activateSelection(): boolean {
+    const action = enterAction(selectedRow);
+    if (action === null) return false;
+    if (action.kind === 'toggle') {
+      toggleCollection(action.id);
+    } else if (selectedBookmark) {
+      void openBookmark(selectedBookmark);
+    }
+    return true;
+  }
 
   function handleKey(e: KeyboardEvent) {
     // While the tour or the help panel is up they own the keyboard.
     if (tour.active || helpOpen) return;
 
-    // Don't intercept when an input/textarea has focus.
+    // Typing wins over shortcuts, with one exception: the search box hands
+    // back the arrows, Enter and Escape so you can find something and open it
+    // without ever letting go of the keyboard.
     const t = e.target as HTMLElement;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) {
       if (isSearchHotkey(e)) {
         e.preventDefault();
         focusSearch();
+        return;
       }
+      if (!t.hasAttribute?.('data-search-input')) return;
+      if (e.key === 'Escape') {
+        // Clear first, so one press undoes the query and a second gets you out
+        // of the box and back to the letter shortcuts.
+        e.preventDefault();
+        if (search !== '') search = '';
+        else t.blur();
+        return;
+      }
+      if (e.key === 'Enter') {
+        if (activateSelection()) e.preventDefault();
+        return;
+      }
+      if (moveCursor(e.key, false)) e.preventDefault();
       return;
     }
 
@@ -186,38 +302,31 @@
         break;
       case 'k':
       case 'K':
-        if (navItems.length > 0) selectedIndex = Math.max(0, selectedIndex - 1);
+        selectedIndex = stepIndex(selectedIndex, navRows.length, -1);
         break;
       case 'j':
       case 'J':
-        if (navItems.length > 0) selectedIndex = Math.min(navItems.length - 1, selectedIndex + 1);
+        selectedIndex = stepIndex(selectedIndex, navRows.length, 1);
         break;
       case 'ArrowDown':
-        if (navItems.length > 0) {
-          e.preventDefault();
-          selectedIndex = Math.min(navItems.length - 1, selectedIndex + 1);
-        }
-        break;
       case 'ArrowUp':
-        if (navItems.length > 0) {
-          e.preventDefault();
-          selectedIndex = Math.max(0, selectedIndex - 1);
-        }
+      case 'ArrowLeft':
+      case 'ArrowRight':
+        if (moveCursor(e.key, true)) e.preventDefault();
         break;
-      case 'Enter': {
-        const b = navItems[selectedIndex];
-        if (b) openBookmark(b);
+      case 'Enter':
+        if (activateSelection()) e.preventDefault();
         break;
-      }
       case 'Backspace':
       case 'Delete': {
-        const b = navItems[selectedIndex];
-        if (b) deleteBookmark(b);
+        // Folders are deleted from the sidebar, where the prompt can explain
+        // what happens to what's inside them.
+        if (selectedBookmark) deleteBookmark(selectedBookmark);
         break;
       }
       case 's':
       case 'S': {
-        const b = navItems[selectedIndex];
+        const b = selectedBookmark;
         if (b) bookmarks.update(b.id, { starred: !b.starred });
         break;
       }
@@ -449,9 +558,9 @@
     <!-- The tour hook only exists when there is something to point at. -->
     <div data-tour={items.length > 0 ? 'results' : null}>
       {#if view === 'grid'}
-        <BookmarkGrid {items} {selectedIndex} onOpen={openBookmark} onDelete={deleteBookmark} />
+        <BookmarkGrid {items} {selectedIndex} onOpen={openBookmark} onDelete={deleteBookmark} onFocusItem={focusRow} />
       {:else}
-        <BookmarkList rows={listRows} {tags} {selectedId} onOpen={openBookmark} onDelete={deleteBookmark} onToggleCollection={toggleCollection} />
+        <BookmarkList rows={listRows} {tags} {selectedKey} onOpen={openBookmark} onDelete={deleteBookmark} onToggleCollection={toggleCollection} onFocusRow={focusRow} />
       {/if}
     </div>
   </main>

@@ -50,6 +50,32 @@ describe('BookmarkList', () => {
     expect(getByText('Loose page')).toBeTruthy();
   });
 
+  it('marks the cursor row as selected, folders included', () => {
+    const { getByLabelText } = render(BookmarkList, {
+      rows: buildListRows(items, collections),
+      tags: [],
+      selectedKey: 'tools',
+      onOpen: noop,
+      onDelete: noop,
+      onToggleCollection: noop,
+    });
+    expect(getByLabelText('Tools, 1 bookmark').getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('reports a focused row so the cursor can follow the tab key', async () => {
+    const focused: string[] = [];
+    const { getByLabelText } = render(BookmarkList, {
+      rows: buildListRows(items, collections),
+      tags: [],
+      onOpen: noop,
+      onDelete: noop,
+      onToggleCollection: noop,
+      onFocusRow: (key: string) => focused.push(key),
+    });
+    await fireEvent.focus(getByLabelText('Tools, 1 bookmark'));
+    expect(focused).toEqual(['tools']);
+  });
+
   it('reports expansion state and emits a toggle when a folder is clicked', async () => {
     let toggled: string | null = null;
     const { getByLabelText } = render(BookmarkList, {

@@ -5,18 +5,25 @@
   let {
     rows,
     tags,
-    selectedId = null,
+    selectedKey = null,
     onOpen,
     onDelete,
     onToggleCollection,
+    onFocusRow = () => {},
   }: {
     rows: ListRow[];
     tags: Tag[];
-    /** Id of the keyboard-selected bookmark, or null when nothing is selected. */
-    selectedId?: string | null;
+    /**
+     * Key of the row the keyboard cursor is on — a bookmark id or a collection
+     * id — or null when nothing is selected. Rows are keyed rather than typed
+     * here because the cursor walks folders and bookmarks alike.
+     */
+    selectedKey?: string | null;
     onOpen: (b: Bookmark, background?: boolean) => void;
     onDelete: (b: Bookmark) => void;
     onToggleCollection: (id: string) => void;
+    /** Tabbing to a row moves the keyboard cursor onto it. */
+    onFocusRow?: (key: string) => void;
   } = $props();
 
   /** Indent per tree level, in rem, so it scales with the UI-scale setting. */
@@ -49,11 +56,14 @@
           type="button"
           role="treeitem"
           aria-expanded={row.expanded}
-          aria-selected="false"
+          aria-selected={row.collection.id === selectedKey}
           aria-level={row.depth + 1}
+          data-nav-key={row.collection.id}
           aria-label="{row.collection.name}, {row.count} bookmark{row.count === 1 ? '' : 's'}"
           onclick={() => onToggleCollection(row.collection.id)}
-          class="flex items-center gap-2 py-2 pr-2 border-b border-white/5 hover:bg-white/5 cursor-pointer text-sm text-left w-full"
+          onfocus={() => onFocusRow(row.collection.id)}
+          onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); }}
+          class="flex items-center gap-2 py-2 pr-2 border-b border-white/5 hover:bg-white/5 cursor-pointer text-sm text-left w-full {row.collection.id === selectedKey ? 'bg-accent-violet/10 ring-1 ring-accent-violet/40 rounded' : ''}"
           style="padding-left: {0.5 + row.depth * INDENT}rem"
         >
           <svg
@@ -70,8 +80,9 @@
       {:else}
         <div
           role="treeitem"
-          aria-selected={row.bookmark.id === selectedId}
+          aria-selected={row.bookmark.id === selectedKey}
           aria-level={row.depth + 1}
+          data-nav-key={row.bookmark.id}
           tabindex="0"
           draggable="true"
           ondragstart={(e) => {
@@ -79,10 +90,11 @@
             if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
           }}
           onclick={() => onOpen(row.bookmark)}
-          onkeydown={(e) => e.key === 'Enter' && onOpen(row.bookmark)}
+          onfocus={() => onFocusRow(row.bookmark.id)}
+          onkeydown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onOpen(row.bookmark); } }}
           onauxclick={(e) => { if (e.button === 1) { e.preventDefault(); onOpen(row.bookmark, true); } }}
           onmousedown={(e) => { if (e.button === 1) e.preventDefault(); }}
-          class="grid grid-cols-[1rem_1fr_8.75rem_3.75rem_1.5rem] gap-3 items-center py-2 pr-2 border-b border-white/5 hover:bg-white/5 cursor-pointer text-sm group {row.bookmark.id === selectedId ? 'bg-accent-violet/10 ring-1 ring-accent-violet/40 rounded' : ''}"
+          class="grid grid-cols-[1rem_1fr_8.75rem_3.75rem_1.5rem] gap-3 items-center py-2 pr-2 border-b border-white/5 hover:bg-white/5 cursor-pointer text-sm group {row.bookmark.id === selectedKey ? 'bg-accent-violet/10 ring-1 ring-accent-violet/40 rounded' : ''}"
           style="padding-left: {0.5 + row.depth * INDENT}rem"
         >
           {#if row.bookmark.faviconUrl}
