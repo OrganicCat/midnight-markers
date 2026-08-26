@@ -10,6 +10,7 @@
   import DataSection from './DataSection.svelte';
   import Diagnostics from './Diagnostics.svelte';
   import ScalePicker from './ScalePicker.svelte';
+  import StartupPicker from './StartupPicker.svelte';
 
   // Read from the manifest rather than hardcoding, so the footer can't drift
   // out of step with the version that actually shipped.
@@ -26,6 +27,7 @@
   let modelDraft = $state<string>('anthropic/claude-haiku-4.5');
   let providerDraft = $state<ProviderId>('openrouter');
   let scaleDraft = $state<number>(1);
+  let focusDraft = $state<boolean>(false);
 
   const provider = $derived(getProvider(providerDraft));
   const currentKey = $derived(
@@ -37,6 +39,7 @@
     providerDraft = next.aiProvider;
     modelDraft = next.aiProvider === 'anthropic' ? next.anthropicModel : next.openrouterModel;
     scaleDraft = next.uiScale;
+    focusDraft = next.focusSearchOnOpen;
     s = next;
   }
 
@@ -126,6 +129,13 @@
       void settings.set({ uiScale: scaleDraft }).then(refresh);
     }
   });
+
+  $effect(() => {
+    if (!s) return;
+    if (focusDraft !== s.focusSearchOnOpen) {
+      void settings.set({ focusSearchOnOpen: focusDraft }).then(refresh);
+    }
+  });
 </script>
 
 <div class="min-h-screen p-10" style="background: linear-gradient(180deg, #0b0c14 0%, #14172a 100%);">
@@ -159,6 +169,8 @@
       />
 
       <ScalePicker bind:value={scaleDraft} />
+
+      <StartupPicker bind:value={focusDraft} />
 
       <PrivacyNote
         consentAt={s.aiConsentAt}

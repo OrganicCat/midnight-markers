@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultView: 'grid',
   defaultCollectionId: null,
   uiScale: 1,
+  focusSearchOnOpen: false,
   tourSeenAt: null,
 };
 
