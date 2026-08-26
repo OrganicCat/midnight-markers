@@ -115,7 +115,6 @@
     view = s.defaultView;
     index = buildIndex(allBookmarks);
     if (s.tourSeenAt === null) maybeAutoStartTour();
-    else if (s.focusSearchOnOpen) autofocusSearch();
   }
 
   $effect(() => {
@@ -338,20 +337,6 @@
         view = 'list';
         break;
     }
-  }
-
-  /**
-   * Opt-in: drop the cursor into the search box on load. Waits a frame so the
-   * input is actually in the DOM, and skips it if something else already has
-   * focus — a slow settings read shouldn't yank the cursor out from under
-   * someone who started typing.
-   */
-  function autofocusSearch(): void {
-    requestAnimationFrame(() => {
-      const active = document.activeElement;
-      if (active && active !== document.body && active.tagName === 'INPUT') return;
-      focusSearch();
-    });
   }
 
   onMount(() => {

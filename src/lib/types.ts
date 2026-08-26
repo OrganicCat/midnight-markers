@@ -69,12 +69,6 @@ export type Settings = {
   defaultCollectionId: string | null;
   uiScale: number; // multiplier on root font-size; 1.0 = 100%, range 0.9–1.5
   /**
-   * Put the cursor in the new tab page's search box as soon as the page loads.
-   * Off by default: with the cursor in the box, the single-letter shortcuts
-   * (j/k, g, 1, 2) type instead of navigating until you press Escape.
-   */
-  focusSearchOnOpen: boolean;
-  /**
    * Timestamp at which the guided tour was last *shown*. Null means the user
    * has never seen it, which is the one and only condition for auto-running it
    * on the new tab page. Written when the tour opens rather than when it
