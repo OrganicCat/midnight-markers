@@ -48,8 +48,7 @@
     "@anthropic-ai/sdk": "^0.112.4",
     "idb": "^8.0.0",
     "minisearch": "^7.2.0",
-    "svelte-dnd-action": "^0.9.69",
-    "ulid": "^2.3.0"
+    "svelte-dnd-action": "^0.9.69"
   },
   "overrides": {
     "adm-zip": "^0.6.0",
