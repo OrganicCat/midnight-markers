@@ -10,6 +10,7 @@
   import DataSection from './DataSection.svelte';
   import Diagnostics from './Diagnostics.svelte';
   import ScalePicker from './ScalePicker.svelte';
+  import SavedIconToggle from './SavedIconToggle.svelte';
 
   // Read from the manifest rather than hardcoding, so the footer can't drift
   // out of step with the version that actually shipped.
@@ -159,6 +160,8 @@
       />
 
       <ScalePicker bind:value={scaleDraft} />
+
+      <SavedIconToggle />
 
       <PrivacyNote
         consentAt={s.aiConsentAt}

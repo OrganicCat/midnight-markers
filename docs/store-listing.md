@@ -96,6 +96,7 @@ permission is actually for:
 | `scripting` | One metadata-extraction function in the tab being saved | `src/popup/App.svelte:123` |
 | `bookmarks` | Read-only `getTree()` for the optional import | `src/lib/native/importBookmarks.ts` |
 | `alarms` | The single daily broken-link alarm | `src/background/service-worker.ts` |
+| `tabs` (optional) | Matching tab URLs against the library for the "already saved" toolbar icon. Off until the user turns it on in Settings | `src/background/savedIcon.ts`, `src/settings/SavedIconToggle.svelte` |
 
 One correction worth keeping straight, because it is easy to get wrong and a
 reviewer can check it: `storage` is **not** where the extension keeps its
@@ -104,8 +105,10 @@ live in IndexedDB, which needs no permission. `chrome.storage.local` holds
 only the most recent AI error record.
 
 There is no `<all_urls>` and no broad host access. The two AI endpoints are
-the only hosts the extension can reach, and the `tabs` permission was
-deliberately dropped in favour of `activeTab`.
+the only hosts the extension can reach. `tabs` is an *optional* permission:
+it isn't granted at install and adds no install-time warning. The browser
+only asks for it when the user switches on the "already saved" toolbar icon
+in Settings, and switching that off removes it again.
 
 ## Data disclosures
 

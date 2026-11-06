@@ -41,6 +41,14 @@ If you use the "Import browser bookmarks" feature, the extension reads your
 browser's existing bookmark tree to copy it into its own local library. That
 data is read locally and is not transmitted.
 
+If you turn on "Show when a page is already saved" in Settings, the browser
+asks you to let the extension read your tabs' addresses. The extension then
+compares each tab's URL with the bookmarks in your local library, so it can
+put a small "B" on the toolbar icon for pages you've already saved. Only the
+address is checked, not the page content. Nothing about your tabs is stored or
+transmitted. The feature is off by default, and switching it off gives the
+permission back.
+
 ## What is sent off your device, and when
 
 **Nothing is transmitted unless you explicitly enable AI features.** They are
@@ -109,7 +117,8 @@ The API key is additionally:
 - We do not operate a server that receives your data.
 - We do not read pages in the background. Page content is read only from the
   tab you are actively on, at the moment you click the extension's toolbar
-  button.
+  button. The one exception is tab addresses (not content), and only if you
+  turn on the "already saved" toolbar icon described above.
 - We do not transfer user data to third parties except the AI provider you have
   selected, as described above, and only when you have enabled AI features.
 - We do not use your data to train any model. (Whether your selected provider

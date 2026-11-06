@@ -23,7 +23,7 @@ Used when the user clicks the toolbar button to save the page they are looking a
 
 activeTab grants this for that one tab only, and only in response to the user clicking the extension's action. It gives no access to any tab the user has not explicitly chosen to save, and none at all in the background.
 
-We use activeTab specifically instead of the broader "tabs" permission, which was removed in an earlier version, so that the extension cannot enumerate or read the user's tabs.
+The save flow uses activeTab rather than the broader "tabs" permission. "tabs" is requested only as an optional permission for one opt-in feature, described below.
 
 
 ================================================================
@@ -54,6 +54,16 @@ Schedules the daily broken-link check. On install the extension creates one alar
 This is the only alarm the extension registers, and it drives no other behaviour.
 
 The permission is necessary because a Manifest V3 service worker is terminated when idle and cannot schedule recurring work by staying alive.
+
+
+================================================================
+tabs  (optional permission)
+================================================================
+Requested at runtime only, never at install. It powers one opt-in feature: "Show when a page is already saved", a switch in Settings that is off by default. When the user turns it on, the browser shows its permission prompt.
+
+With the permission granted, the background script reads each tab's URL when the tab loads a page and compares it with the URLs in the user's local bookmark library. If the page is already saved, it sets that tab's toolbar icon to a version with a small "B" badge. Only the URL is used. No page content is read, and nothing about the user's tabs is stored or sent anywhere.
+
+Turning the switch off calls chrome.permissions.remove, which gives the permission back and restores the normal icon on every tab.
 
 
 ================================================================

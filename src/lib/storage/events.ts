@@ -1,3 +1,6 @@
+import { ext } from '$lib/ext';
+import { BOOKMARKS_CHANGED_MESSAGE } from '$lib/savedIcon';
+
 export type StorageEvent =
   | { type: 'bookmarks:changed' }
   | { type: 'collections:changed' }
@@ -66,6 +69,23 @@ export function emit(e: StorageEvent): void {
     } catch {
       // Best-effort cross-page sync; fall back silently.
     }
+  }
+  if (e.type === 'bookmarks:changed') wakeBackground();
+}
+
+/**
+ * BroadcastChannel only reaches pages that are already running. A Manifest V3
+ * service worker is shut down when idle, and the "already saved" toolbar icon
+ * lives there, so it also gets a runtime message, which starts it back up.
+ */
+function wakeBackground(): void {
+  try {
+    const sent = ext?.runtime?.sendMessage?.(BOOKMARKS_CHANGED_MESSAGE) as unknown;
+    // Rejects with "Receiving end does not exist" when nothing is listening,
+    // e.g. when the sender is the service worker itself. That's fine.
+    if (sent instanceof Promise) sent.catch(() => {});
+  } catch {
+    // Extension context gone (the extension was reloaded under this page).
   }
 }
 

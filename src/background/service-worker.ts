@@ -1,7 +1,12 @@
 import { ext } from '$lib/ext';
 import { checkBatch } from './brokenLinks';
+import { registerSavedIcon } from './savedIcon';
 
 const ALARM_NAME = 'broken-link-check';
+
+// Listeners must be registered synchronously at startup so an event that
+// wakes the service worker is delivered to them.
+registerSavedIcon();
 
 ext.runtime.onInstalled.addListener(() => {
   console.log('[midnight-markers] installed');

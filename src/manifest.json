@@ -40,5 +40,6 @@
     }
   },
   "permissions": ["storage", "activeTab", "scripting", "bookmarks", "alarms"],
+  "optional_permissions": ["tabs"],
   "host_permissions": ["https://openrouter.ai/*", "https://api.anthropic.com/*"]
 }
